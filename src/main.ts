@@ -1,5 +1,9 @@
 import * as core from '@actions/core'
 import { sendReleaseNotification } from './slack.js'
+import { analyzeBreakingChanges } from './breaking-changes.js'
+import { analyzeConfigChanges } from './config-analysis.js'
+import { updateReleasesListCanvas } from './releases-list.js'
+import { WebClient } from '@slack/web-api'
 
 /**
  * The main function for the action.
@@ -16,6 +20,8 @@ export async function run(): Promise<void> {
     const releaseUrl: string = core.getInput('release-url')
     const releaseNotes: string = core.getInput('release-notes')
     const customMessage: string = core.getInput('custom-message')
+    const maintainReleasesList: boolean =
+      core.getInput('maintain-releases-list') === 'true'
 
     // Determine bot token - use input if provided, otherwise try Agglayer default
     let slackBotToken: string = slackBotTokenInput
@@ -41,6 +47,13 @@ export async function run(): Promise<void> {
     if (releaseNotes) {
       core.debug(`Release notes provided for breaking change analysis`)
     }
+    if (maintainReleasesList) {
+      core.debug(`Releases list maintenance enabled`)
+    }
+
+    // Analyze release notes for breaking changes and config changes
+    const breakingAnalysis = analyzeBreakingChanges(releaseNotes)
+    const configAnalysis = analyzeConfigChanges(releaseNotes)
 
     // Send the Slack notification
     await sendReleaseNotification(slackBotToken, slackChannel, {
@@ -52,10 +65,48 @@ export async function run(): Promise<void> {
 
     core.info('Release notification sent successfully!')
 
+    // Update releases list if enabled
+    let releasesListUpdated = false
+    if (maintainReleasesList) {
+      const slack = new WebClient(slackBotToken)
+
+      // Determine change type based on analysis
+      let changeType: 'normal' | 'breaking' | 'config' = 'normal'
+      if (breakingAnalysis.hasBreakingChanges) {
+        changeType = 'breaking'
+      } else if (configAnalysis.hasConfigChanges) {
+        changeType = 'config'
+      }
+
+      releasesListUpdated = await updateReleasesListCanvas(
+        slack,
+        slackChannel,
+        {
+          version: releaseVersion,
+          releaseDate: new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          }),
+          changeType,
+          hasBreaking: breakingAnalysis.hasBreakingChanges,
+          hasConfig: configAnalysis.hasConfigChanges,
+          releaseUrl: releaseUrl || undefined
+        }
+      )
+
+      if (releasesListUpdated) {
+        core.info('Releases list updated successfully!')
+      } else {
+        core.warning('Failed to update releases list')
+      }
+    }
+
     // Set outputs for other workflow steps to use
     core.setOutput('notification-sent', 'true')
     core.setOutput('timestamp', new Date().toISOString())
     core.setOutput('channel', slackChannel)
+    core.setOutput('releases-list-updated', releasesListUpdated.toString())
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) {

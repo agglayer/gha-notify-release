@@ -1,35 +1,43 @@
-name: Notify release
-description: Notify a release on Slack
+name: 'Slack Release Notifier'
+description: 'Send release notifications to Slack with intelligent breaking change detection and persistent Canvas lists'
+author: 'sdan'
 
 # Define your inputs here.
 inputs:
   release-version:
-    description: The version of the release
+    description: 'The version of the release (e.g., v1.2.3)'
     required: true
-    default: 'X.Y.Z'
   slack-bot-token:
-    description: >
-      Slack Bot Token (starts with xoxb-). If not provided, will automatically
-      use SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret for Agglayer projects.
+    description: 'Slack bot token (optional if SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE is set)'
     required: false
   slack-channel:
-    description: >
-      Slack channel to post the notification (e.g., #releases, general, or
-      C1234567890). The bot must be added to this channel.
+    description: 'Slack channel to post to (default: #feed_agglayer-notifier)'
     required: false
     default: '#feed_agglayer-notifier'
   release-url:
-    description: URL to the release page
+    description: 'URL to the release page'
     required: false
   release-notes:
-    description: >
-      Release notes/body content to analyze for breaking changes. Will be  used
-      to detect BREAKING CHANGE markers and conventional commit patterns.
+    description: 'Release notes/body content for breaking change and config analysis'
     required: false
   custom-message:
-    description: Custom message to include with the release notification
+    description: 'Custom message to include in the notification'
     required: false
+  maintain-releases-list:
+    description: 'Whether to maintain a persistent Canvas with all releases in the channel (requires canvases:write permission)'
+    required: false
+    default: 'false'
+
+outputs:
+  notification-sent:
+    description: 'Whether the notification was sent successfully'
+  timestamp:
+    description: 'Timestamp when the notification was sent'
+  channel:
+    description: 'Channel where the notification was sent'
+  releases-list-updated:
+    description: 'Whether the releases Canvas was updated (if enabled)'
 
 runs:
-  using: node20
-  main: dist/index.js
+  using: 'node20'
+  main: 'dist/index.js'

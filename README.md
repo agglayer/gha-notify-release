@@ -9,6 +9,7 @@ token with intelligent breaking change and configuration change detection.
 - ⚠️ **Smart breaking change detection** from release notes and conventional
   commits
 - ⚙️ **Configuration change detection** for config files and diffs
+- 📋 **Persistent releases list** - maintains a running list of all releases per channel
 - 🎨 **Visual highlighting** with color-coded messages for different release types
 - 📝 Supports custom messages
 - 🔗 Includes release URLs
@@ -36,7 +37,17 @@ The action automatically analyzes release notes and detects different types of c
 3. **Before/After sections**: Identifies configuration comparisons
 4. **Config mentions**: Catches bullet points mentioning config updates
 
-### 🎨 Visual Indicators
+### 📋 Persistent Releases List
+
+When enabled, the action maintains a single Canvas document per channel that contains all releases:
+- **Auto-updating**: Each new release updates the same Canvas
+- **Smart formatting**: Visual indicators for breaking/config changes  
+- **Historical tracking**: Keeps last 50 releases with dates
+- **Per-channel**: Separate Canvas for each Slack channel used
+- **Rich formatting**: Beautiful structured markdown with statistics and legends
+- **Easy access**: Canvas appears as a tab in the channel header
+
+### �� Visual Indicators
 
 - **Normal releases**: 🚀 Green sidebar, "New Release"
 - **Config updates**: ⚙️🚀 Yellow sidebar, "CONFIG UPDATE" 
@@ -70,6 +81,7 @@ That's it! The action automatically uses the pre-configured Agglayer bot token.
 5. Scroll down to **"Scopes"** and add these Bot Token Scopes:
    - `chat:write` - Send messages
    - `chat:write.public` - Send messages to channels the app isn't in
+   - `canvases:write` - Create and edit canvases (required for releases list feature)
 6. Click **"Install to Workspace"** at the top
 7. Copy the **"Bot User OAuth Token"** (starts with `xoxb-`)
 
@@ -147,6 +159,7 @@ jobs:
 | `release-url`     | URL to the release page                                                  | No       | -                         |
 | `release-notes`   | Release notes/body for breaking change analysis                          | No       | -                         |
 | `custom-message`  | Custom message to include with the release notification                  | No       | -                         |
+| `maintain-releases-list` | Enable persistent releases list maintenance                       | No       | `false`                   |
 
 ## Outputs
 
@@ -155,6 +168,7 @@ jobs:
 | `notification-sent` | Whether the notification was sent successfully (`true`/`false`) |
 | `timestamp`         | ISO timestamp of when the notification was sent                 |
 | `channel`           | The channel where the notification was sent                     |
+| `releases-list-updated` | Whether the releases list was updated (if enabled)          |
 
 ## Channel Formats
 
@@ -181,7 +195,7 @@ Released at 2024-01-15T10:30:00.000Z
 ### Config Update Release
 
 ```
-⚙️�� CONFIG UPDATE: v1.3.0
+⚙️🚀 CONFIG UPDATE: v1.3.0
 🎉 Updated configuration for new features!
 
 ⚙️ CONFIGURATION CHANGES
@@ -222,6 +236,55 @@ Configuration Files:
 
 📋 Review configuration changes before deploying!
 🔗 View Release
+```
+
+### Persistent Releases List (Canvas)
+
+```markdown
+# 📦 MyProject Releases
+
+*Last updated: Mon, Jan 15, 2024, 10:30 AM PST*
+
+---
+
+## 🚀 Recent Releases
+
+### ⚠️🚀 v2.0.0
+**Jan 15, 2024** • ⚠️ *Breaking* • ⚙️ *Config*
+
+### ⚙️🚀 v1.3.0  
+**Jan 10, 2024** • ⚙️ *Config*
+
+### 🚀 v1.2.3
+**Jan 5, 2024**
+
+---
+
+### 📋 All Releases (15 total)
+
+- ⚠️🚀 **v2.0.0** • Jan 15, 2024 • ⚠️ *Breaking* • ⚙️ *Config*
+- ⚙️🚀 **v1.3.0** • Jan 10, 2024 • ⚙️ *Config*
+- 🚀 **v1.2.3** • Jan 5, 2024
+- 🚀 **v1.2.2** • Dec 28, 2023
+
+---
+
+## 📊 Release Statistics
+
+- **Total releases tracked:** 15
+- **Breaking changes:** 2
+- **Configuration updates:** 4
+- **Normal releases:** 9
+
+## 📖 Legend
+
+- 🚀 **Normal Release** - Regular updates and improvements
+- ⚠️🚀 **Breaking Changes** - May require code changes  
+- ⚙️🚀 **Config Updates** - Configuration files may need updates
+
+---
+
+*This canvas is automatically maintained by the release notification system.*
 ```
 
 ## Breaking Change Examples
@@ -327,7 +390,7 @@ breakdowns.
 ### Bot Token Issues
 
 - Make sure your token starts with `xoxb-`
-- Verify the bot has `chat:write` and `chat:write.public` permissions
+- Verify the bot has `chat:write`, `chat:write.public`, and `canvases:write` permissions
 - Check that the bot is installed in your workspace
 - For Agglayer projects: Ensure the `SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE`
   secret is available
