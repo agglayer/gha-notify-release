@@ -40,6 +40,8 @@ describe('main.ts', () => {
           return 'releases'
         case 'release-url':
           return 'https://github.com/owner/repo/releases/tag/v1.2.3'
+        case 'release-notes':
+          return 'Regular release with bug fixes and improvements'
         case 'custom-message':
           return 'Test release message'
         default:
@@ -75,14 +77,19 @@ describe('main.ts', () => {
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: '#releases',
-        text: 'New Release: v1.2.3',
-        blocks: expect.arrayContaining([
+        text: '*New Release*: v1.2.3',
+        attachments: expect.arrayContaining([
           expect.objectContaining({
-            type: 'section',
-            text: expect.objectContaining({
-              type: 'mrkdwn',
-              text: expect.stringContaining('🚀 *New Release: v1.2.3*')
-            })
+            color: '#36a64f', // Green for normal release
+            blocks: expect.arrayContaining([
+              expect.objectContaining({
+                type: 'section',
+                text: expect.objectContaining({
+                  type: 'mrkdwn',
+                  text: expect.stringContaining('🚀 *New Release*: v1.2.3')
+                })
+              })
+            ])
           })
         ])
       })
@@ -95,6 +102,97 @@ describe('main.ts', () => {
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
     )
     expect(core.setOutput).toHaveBeenCalledWith('channel', 'releases')
+  })
+
+  it('Detects and highlights breaking changes in release notes', async () => {
+    // Mock release notes with breaking changes
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v2.0.0'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return 'releases'
+        case 'release-notes':
+          return `## What's Changed
+          
+          ### Features
+          - feat!: redesigned API with new authentication
+          - Added new dashboard
+          
+          ## BREAKING CHANGES
+          - Removed legacy /v1 endpoints
+          - Changed response format for all APIs`
+        case 'custom-message':
+          return 'Major release with breaking changes'
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that breaking changes are detected and highlighted
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '*BREAKING RELEASE*: v2.0.0',
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            color: '#ff9900', // Orange for breaking release
+            blocks: expect.arrayContaining([
+              expect.objectContaining({
+                text: expect.objectContaining({
+                  text: expect.stringContaining(
+                    '⚠️🚀 *BREAKING RELEASE*: v2.0.0'
+                  )
+                })
+              })
+            ])
+          })
+        ])
+      })
+    )
+
+    // Verify breaking changes info is logged
+    expect(core.info).toHaveBeenCalledWith(
+      'Breaking changes highlighted in notification'
+    )
+  })
+
+  it('Detects conventional commit breaking changes', async () => {
+    // Mock release notes with conventional commit breaking changes
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.5.0'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return 'releases'
+        case 'release-notes':
+          return `### Commits in this release:
+          - feat!: add new authentication system
+          - fix: resolve memory leak
+          - chore!: update dependencies with API changes`
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify breaking changes are detected from conventional commits
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '*BREAKING RELEASE*: v1.5.0',
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            color: '#ff9900' // Orange for breaking release
+          })
+        ])
+      })
+    )
   })
 
   it('Uses environment variable when bot token input is not provided', async () => {
@@ -112,6 +210,8 @@ describe('main.ts', () => {
           return 'releases'
         case 'release-url':
           return 'https://github.com/owner/repo/releases/tag/v1.2.3'
+        case 'release-notes':
+          return 'Regular release'
         case 'custom-message':
           return 'Test release message'
         default:
@@ -126,6 +226,37 @@ describe('main.ts', () => {
 
     // Verify info message about using default token
     expect(core.info).toHaveBeenCalledWith('Using default Agglayer bot token')
+  })
+
+  it('Uses default channel when not specified', async () => {
+    // Mock getInput to return empty channel (should default to '#feed_agglayer-notifier')
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.2.3'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return '' // Empty channel should default to '#feed_agglayer-notifier'
+        case 'release-url':
+          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
+        case 'release-notes':
+          return 'Regular release'
+        case 'custom-message':
+          return 'Test release message'
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that postMessage was called with default channel
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: '#feed_agglayer-notifier'
+      })
+    )
   })
 
   it('Sets a failed status when no bot token is available', async () => {
