@@ -11,8 +11,10 @@ export async function run(): Promise<void> {
     // Get inputs from action configuration
     const releaseVersion: string = core.getInput('release-version')
     const slackBotTokenInput: string = core.getInput('slack-bot-token')
-    const slackChannel: string = core.getInput('slack-channel') || 'general'
+    const slackChannel: string =
+      core.getInput('slack-channel') || '#feed_agglayer-notifier'
     const releaseUrl: string = core.getInput('release-url')
+    const releaseNotes: string = core.getInput('release-notes')
     const customMessage: string = core.getInput('custom-message')
 
     // Determine bot token - use input if provided, otherwise try Agglayer default
@@ -36,11 +38,15 @@ export async function run(): Promise<void> {
 
     core.info(`Sending release notification for version: ${releaseVersion}`)
     core.debug(`Target channel: ${slackChannel}`)
+    if (releaseNotes) {
+      core.debug(`Release notes provided for breaking change analysis`)
+    }
 
     // Send the Slack notification
     await sendReleaseNotification(slackBotToken, slackChannel, {
       version: releaseVersion,
       releaseUrl: releaseUrl || undefined,
+      releaseNotes: releaseNotes || undefined,
       customMessage: customMessage || undefined
     })
 

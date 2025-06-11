@@ -21,6 +21,11 @@ inputs:
   release-url:
     description: URL to the release page
     required: false
+  release-notes:
+    description: >
+      Release notes/body content to analyze for breaking changes. Will be  used
+      to detect BREAKING CHANGE markers and conventional commit patterns.
+    required: false
   custom-message:
     description: Custom message to include with the release notification
     required: false
