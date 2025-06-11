@@ -7,11 +7,21 @@
  */
 import { jest } from '@jest/globals'
 import * as core from '../__fixtures__/core.js'
-import { wait } from '../__fixtures__/wait.js'
+
+// Mock the Slack WebClient
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockPostMessage = jest.fn() as jest.MockedFunction<any>
+const mockWebClient = jest.fn().mockImplementation(() => ({
+  chat: {
+    postMessage: mockPostMessage
+  }
+}))
 
 // Mocks should be declared before the module being tested is imported.
 jest.unstable_mockModule('@actions/core', () => core)
-jest.unstable_mockModule('../src/wait.js', () => ({ wait }))
+jest.unstable_mockModule('@slack/web-api', () => ({
+  WebClient: mockWebClient
+}))
 
 // The module being tested should be imported dynamically. This ensures that the
 // mocks are used in place of any actual dependencies.
@@ -20,43 +30,139 @@ const { run } = await import('../src/main.js')
 describe('main.ts', () => {
   beforeEach(() => {
     // Set the action's inputs as return values from core.getInput().
-    core.getInput.mockImplementation(() => '500')
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.2.3'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return 'releases'
+        case 'release-url':
+          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
+        case 'custom-message':
+          return 'Test release message'
+        default:
+          return ''
+      }
+    })
 
-    // Mock the wait function so that it does not actually wait.
-    wait.mockImplementation(() => Promise.resolve('done!'))
+    // Mock Slack WebClient to simulate successful response
+    mockPostMessage.mockResolvedValue({
+      ok: true,
+      channel: 'C1234567890',
+      ts: '1234567890.123456'
+    })
+
+    // Clear environment variables
+    delete process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE
   })
 
   afterEach(() => {
     jest.resetAllMocks()
+    delete process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE
   })
 
-  it('Sets the time output', async () => {
+  it('Sends notification and sets outputs with provided bot token', async () => {
     await run()
 
-    // Verify the time output was set.
-    expect(core.setOutput).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      // Simple regex to match a time string in the format HH:MM:SS.
-      expect.stringMatching(/^\d{2}:\d{2}:\d{2}/)
+    // Verify that WebClient was instantiated with the bot token
+    expect(mockWebClient).toHaveBeenCalledWith(
+      'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+    )
+
+    // Verify that postMessage was called with correct parameters
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: '#releases',
+        text: 'New Release: v1.2.3',
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'section',
+            text: expect.objectContaining({
+              type: 'mrkdwn',
+              text: expect.stringContaining('🚀 *New Release: v1.2.3*')
+            })
+          })
+        ])
+      })
+    )
+
+    // Verify the outputs were set correctly
+    expect(core.setOutput).toHaveBeenCalledWith('notification-sent', 'true')
+    expect(core.setOutput).toHaveBeenCalledWith(
+      'timestamp',
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    )
+    expect(core.setOutput).toHaveBeenCalledWith('channel', 'releases')
+  })
+
+  it('Uses environment variable when bot token input is not provided', async () => {
+    // Set up environment variable
+    process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE = 'xoxb-env-token-12345'
+
+    // Mock getInput to return empty bot token
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.2.3'
+        case 'slack-bot-token':
+          return '' // Empty bot token input
+        case 'slack-channel':
+          return 'releases'
+        case 'release-url':
+          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
+        case 'custom-message':
+          return 'Test release message'
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that WebClient was instantiated with the environment variable token
+    expect(mockWebClient).toHaveBeenCalledWith('xoxb-env-token-12345')
+
+    // Verify info message about using default token
+    expect(core.info).toHaveBeenCalledWith('Using default Agglayer bot token')
+  })
+
+  it('Sets a failed status when no bot token is available', async () => {
+    // Mock getInput to return missing bot token and no environment variable
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.2.3'
+        case 'slack-bot-token':
+          return '' // Missing bot token
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that the action was marked as failed
+    expect(core.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'slack-bot-token is required. Either provide it as an input or ensure SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret is available.'
+      )
     )
   })
 
-  it('Sets a failed status', async () => {
-    // Clear the getInput mock and return an invalid value.
-    core.getInput.mockClear().mockReturnValueOnce('this is not a number')
-
-    // Clear the wait mock and return a rejected promise.
-    wait
-      .mockClear()
-      .mockRejectedValueOnce(new Error('milliseconds is not a number'))
+  it('Sets a failed status when Slack API fails', async () => {
+    // Mock Slack WebClient to simulate API failure
+    mockPostMessage.mockResolvedValue({
+      ok: false,
+      error: 'channel_not_found'
+    })
 
     await run()
 
-    // Verify that the action was marked as failed.
-    expect(core.setFailed).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds is not a number'
+    // Verify that the action was marked as failed
+    expect(core.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to send release notification')
     )
   })
 })

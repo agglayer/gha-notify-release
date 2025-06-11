@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import { wait } from './wait.js'
+import { sendReleaseNotification } from './slack.js'
 
 /**
  * The main function for the action.
@@ -8,20 +8,54 @@ import { wait } from './wait.js'
  */
 export async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
+    // Get inputs from action configuration
+    const releaseVersion: string = core.getInput('release-version')
+    const slackBotTokenInput: string = core.getInput('slack-bot-token')
+    const slackChannel: string = core.getInput('slack-channel') || 'general'
+    const releaseUrl: string = core.getInput('release-url')
+    const customMessage: string = core.getInput('custom-message')
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    // Determine bot token - use input if provided, otherwise try Agglayer default
+    let slackBotToken: string = slackBotTokenInput
+    if (!slackBotToken) {
+      slackBotToken = process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE || ''
+      if (slackBotToken) {
+        core.info('Using default Agglayer bot token')
+      }
+    }
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    // Validate required inputs
+    if (!releaseVersion) {
+      throw new Error('release-version is required')
+    }
+    if (!slackBotToken) {
+      throw new Error(
+        'slack-bot-token is required. Either provide it as an input or ensure SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret is available.'
+      )
+    }
+
+    core.info(`Sending release notification for version: ${releaseVersion}`)
+    core.debug(`Target channel: ${slackChannel}`)
+
+    // Send the Slack notification
+    await sendReleaseNotification(slackBotToken, slackChannel, {
+      version: releaseVersion,
+      releaseUrl: releaseUrl || undefined,
+      customMessage: customMessage || undefined
+    })
+
+    core.info('Release notification sent successfully!')
 
     // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
+    core.setOutput('notification-sent', 'true')
+    core.setOutput('timestamp', new Date().toISOString())
+    core.setOutput('channel', slackChannel)
   } catch (error) {
     // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    if (error instanceof Error) {
+      core.setFailed(`Failed to send release notification: ${error.message}`)
+    } else {
+      core.setFailed('An unknown error occurred')
+    }
   }
 }
