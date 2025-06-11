@@ -1,23 +1,29 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
-
-# Add your action's branding here. This will appear on the GitHub Marketplace.
-branding:
-  icon: heart
-  color: red
+name: Notify release
+description: Notify a release on Slack
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  release-version:
+    description: The version of the release
     required: true
-    default: '1000'
-
-# Define your outputs here.
-outputs:
-  time:
-    description: Your output description here
+    default: 'X.Y.Z'
+  slack-bot-token:
+    description: >
+      Slack Bot Token (starts with xoxb-). If not provided, will automatically
+      use SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret for Agglayer projects.
+    required: false
+  slack-channel:
+    description: >
+      Slack channel to post the notification (e.g., #releases, general, or
+      C1234567890). The bot must be added to this channel.
+    required: false
+    default: '#feed_agglayer-notifier'
+  release-url:
+    description: URL to the release page
+    required: false
+  custom-message:
+    description: Custom message to include with the release notification
+    required: false
 
 runs:
   using: node20
