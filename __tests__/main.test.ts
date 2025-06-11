@@ -296,4 +296,114 @@ describe('main.ts', () => {
       expect.stringContaining('Failed to send release notification')
     )
   })
+
+  it('Detects and highlights config changes in release notes', async () => {
+    // Mock release notes with config changes
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v1.3.0'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return 'releases'
+        case 'release-notes':
+          return `## Configuration Updates
+          
+          Please update your config files:
+          - [config.json](https://example.com/config.json) - Main configuration
+          - Configuration settings updated for new feature
+          
+          \`\`\`diff
+          {
+            "api": {
+          -   "timeout": 30000
+          +   "timeout": 60000
+            }
+          }
+          \`\`\``
+        case 'custom-message':
+          return 'Config update release'
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that config changes are detected and highlighted
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '*CONFIG UPDATE*: v1.3.0',
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            color: '#ffcc00', // Yellow for config changes
+            blocks: expect.arrayContaining([
+              expect.objectContaining({
+                text: expect.objectContaining({
+                  text: expect.stringContaining('⚙️🚀 *CONFIG UPDATE*: v1.3.0')
+                })
+              })
+            ])
+          })
+        ])
+      })
+    )
+
+    // Verify config changes info is logged
+    expect(core.info).toHaveBeenCalledWith(
+      'Configuration changes highlighted in notification'
+    )
+  })
+
+  it('Prioritizes breaking changes over config changes', async () => {
+    // Mock release notes with both breaking and config changes
+    core.getInput.mockImplementation((name: string) => {
+      switch (name) {
+        case 'release-version':
+          return 'v2.0.0'
+        case 'slack-bot-token':
+          return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
+        case 'slack-channel':
+          return 'releases'
+        case 'release-notes':
+          return `## Major Release
+          
+          ## BREAKING CHANGES
+          - Removed legacy API endpoints
+          
+          ## Configuration Updates
+          - [config.json](https://example.com/config.json) updated
+          
+          \`\`\`diff
+          - old_setting: value
+          + new_setting: value
+          \`\`\``
+        default:
+          return ''
+      }
+    })
+
+    await run()
+
+    // Verify that breaking changes take priority (orange color, breaking release type)
+    expect(mockPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '*BREAKING RELEASE*: v2.0.0',
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            color: '#ff9900' // Orange for breaking changes (not yellow for config)
+          })
+        ])
+      })
+    )
+
+    // Verify both types of changes are logged
+    expect(core.info).toHaveBeenCalledWith(
+      'Breaking changes highlighted in notification'
+    )
+    expect(core.info).toHaveBeenCalledWith(
+      'Configuration changes highlighted in notification'
+    )
+  })
 })

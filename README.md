@@ -1,14 +1,15 @@
 # Slack Release Notifier Action
 
 A GitHub Action that sends beautiful release notifications to Slack using a bot
-token with intelligent breaking change detection.
+token with intelligent breaking change and configuration change detection.
 
 ## Features
 
 - 🚀 Sends formatted release notifications to Slack
 - ⚠️ **Smart breaking change detection** from release notes and conventional
   commits
-- 🎨 **Visual highlighting** with color-coded messages for breaking releases
+- ⚙️ **Configuration change detection** for config files and diffs
+- 🎨 **Visual highlighting** with color-coded messages for different release types
 - 📝 Supports custom messages
 - 🔗 Includes release URLs
 - ✨ Beautiful formatting with emojis and timestamps
@@ -16,12 +17,11 @@ token with intelligent breaking change detection.
 - 🔧 Simple setup with Slack bot tokens
 - ⚡ Zero configuration for Agglayer projects
 
-## Breaking Change Detection
+## Intelligent Detection
 
-The action automatically analyzes release notes and detects breaking changes
-using multiple methods:
+The action automatically analyzes release notes and detects different types of changes:
 
-### 🔍 Detection Methods
+### 🔍 Breaking Change Detection
 
 1. **Conventional Commits**: Detects `!` markers (e.g., `feat!:`, `fix!:`)
 2. **BREAKING CHANGE sections**: Finds explicit "BREAKING CHANGES" sections
@@ -29,11 +29,18 @@ using multiple methods:
    "deprecated", "incompatible"
 4. **Major versions**: Detects major version bumps (e.g., v2.0.0, v3.0.0)
 
+### ⚙️ Configuration Change Detection
+
+1. **Config file links**: Detects markdown links to config files (`.json`, `.yaml`, `.env`, etc.)
+2. **Configuration diffs**: Finds code blocks with config file changes
+3. **Before/After sections**: Identifies configuration comparisons
+4. **Config mentions**: Catches bullet points mentioning config updates
+
 ### 🎨 Visual Indicators
 
 - **Normal releases**: 🚀 Green sidebar, "New Release"
-- **Breaking releases**: ⚠️🚀 Orange sidebar, "BREAKING RELEASE" with detailed
-  breakdown
+- **Config updates**: ⚙️🚀 Yellow sidebar, "CONFIG UPDATE" 
+- **Breaking releases**: ⚠️🚀 Orange sidebar, "BREAKING RELEASE" (highest priority)
 
 ## Quick Start (For Agglayer Projects)
 
@@ -171,28 +178,50 @@ You can specify the Slack channel in multiple ways:
 Released at 2024-01-15T10:30:00.000Z
 ```
 
-### Breaking Release
+### Config Update Release
+
+```
+⚙️�� CONFIG UPDATE: v1.3.0
+🎉 Updated configuration for new features!
+
+⚙️ CONFIGURATION CHANGES
+
+Configuration Files:
+• config.json
+• .env.example
+
+Configuration Updates:
+• Database configuration updated for better performance
+• API timeout settings modified
+
+📋 Review configuration changes before deploying!
+🔗 View Release
+```
+
+### Breaking Release (with Config)
 
 ```
 ⚠️🚀 BREAKING RELEASE: v2.0.0
-
 🎉 Major update with new features!
 
 ⚠️ BREAKING CHANGES DETECTED
 
 Conventional Commit Breaking Changes:
 • feat!: redesigned authentication system
-• chore!: updated API endpoints
 
 Breaking Changes from Release Notes:
 • Removed legacy /v1 endpoints
-• Changed response format for all APIs
 
 🔍 Please review the changes carefully before updating!
 
-🔗 View Release
+⚙️ CONFIGURATION CHANGES
 
-Released at 2024-01-15T10:30:00.000Z
+Configuration Files:
+• config.json
+• settings.yaml
+
+📋 Review configuration changes before deploying!
+🔗 View Release
 ```
 
 ## Breaking Change Examples
