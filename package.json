@@ -1,17 +1,17 @@
 {
-  "name": "typescript-action",
-  "description": "GitHub Actions TypeScript template",
-  "version": "0.0.0",
-  "author": "",
+  "name": "gha-notify-release",
+  "description": "GitHub Actions Notify Release",
+  "version": "1.0.0",
+  "author": "@sebastiendan",
   "type": "module",
   "private": true,
-  "homepage": "https://github.com/actions/typescript-action",
+  "homepage": "https://github.com/agglayer/gha-notify-release",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/agglayer/gha-notify-release.git"
   },
   "bugs": {
-    "url": "https://github.com/actions/typescript-action/issues"
+    "url": "https://github.com/agglayer/gha-notify-release/issues"
   },
   "keywords": [
     "actions"
