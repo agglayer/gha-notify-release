@@ -57192,10 +57192,13 @@ async function sendReleaseNotification(token, channel, notification) {
         releaseEmoji = '🧪🚀';
         releaseType = '*E2E WORKFLOW RELEASE*';
     }
-    // Build the main message with repository name inline
-    let message = `${releaseEmoji} ${releaseType}: ${notification.version}`;
+    // Build the main message with repository name first
+    let message = `${releaseEmoji} ${releaseType}: `;
     if (notification.repositoryName) {
-        message += ` (${notification.repositoryName})`;
+        message += `${notification.repositoryName} ${notification.version}`;
+    }
+    else {
+        message += notification.version;
     }
     if (notification.customMessage) {
         message += `\n\n${notification.customMessage}`;
@@ -57230,10 +57233,18 @@ async function sendReleaseNotification(token, channel, notification) {
     else if (e2eAnalysis.hasE2ETests) {
         messageColor = '#00bcd4'; // Cyan for e2e tested releases
     }
+    // Create the text with repository name first for fallback
+    let messageText = `${releaseType}: `;
+    if (notification.repositoryName) {
+        messageText += `${notification.repositoryName} ${notification.version}`;
+    }
+    else {
+        messageText += notification.version;
+    }
     try {
         const result = await slack.chat.postMessage({
             channel: formattedChannel,
-            text: `${releaseType}: ${notification.version}`,
+            text: messageText,
             attachments: [
                 {
                     color: messageColor,
@@ -57312,7 +57323,20 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         return true;
     }
     catch (error) {
-        coreExports.error(`❌ Failed to update releases list canvas: ${error}`);
+        const errorMessage = error?.message || error;
+        if (errorMessage.includes('not_in_channel')) {
+            coreExports.warning(`⚠️ Canvas update failed: Bot is not in channel ${channel}. Add the bot to the channel with: /invite @YourBotName`);
+        }
+        else if (errorMessage.includes('missing_scope') ||
+            errorMessage.includes('canvases:write')) {
+            coreExports.warning(`⚠️ Canvas update failed: Bot missing 'canvases:write' permission. Add this scope in your Slack app OAuth settings.`);
+        }
+        else if (errorMessage.includes('channel_canvas_already_exists')) {
+            coreExports.warning(`⚠️ Canvas update failed: Channel canvas already exists. Please check the channel's Canvas tab.`);
+        }
+        else {
+            coreExports.error(`❌ Failed to update releases list canvas: ${errorMessage}`);
+        }
         return false;
     }
 }
@@ -57356,7 +57380,13 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
             return result.canvas_id;
         }
         catch (error) {
-            if (error.data?.error === 'channel_canvas_already_exists') {
+            if (error.data?.error === 'not_in_channel') {
+                throw new Error(`Bot is not in channel ${channelId}. Please add the bot to the channel using: /invite @YourBotName`);
+            }
+            else if (error.data?.error === 'missing_scope') {
+                throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
+            }
+            else if (error.data?.error === 'channel_canvas_already_exists') {
                 // Canvas already exists, try to find it and update
                 coreExports.info('📋 Channel canvas already exists, attempting to find and update it');
                 throw new Error('Channel canvas already exists - please check channel canvas manually');
@@ -57510,7 +57540,12 @@ async function getChannelId(client, channel) {
         }
     }
     catch (error) {
-        coreExports.warning(`Error finding channel ID for ${channel}: ${error}`);
+        if (error.data?.error === 'missing_scope') {
+            coreExports.info(`Note: Bot needs 'channels:read' permission to resolve channel names. Please use channel ID directly or add the permission.`);
+        }
+        else {
+            coreExports.warning(`Error finding channel ID for ${channel}: ${error}`);
+        }
     }
     return null;
 }
@@ -57525,9 +57560,14 @@ async function getChannelInfo(client, channelId) {
         }
     }
     catch (error) {
-        coreExports.warning(`Could not get channel info for ${channelId}: ${error}`);
+        if (error.data?.error === 'missing_scope') {
+            coreExports.info(`Note: Bot needs 'channels:read' permission to get channel name. Using channel ID as fallback.`);
+        }
+        else {
+            coreExports.warning(`Could not get channel info for ${channelId}: ${error}`);
+        }
     }
-    return null;
+    return { name: channelId }; // Fallback to channel ID
 }
 /**
  * Loads canvas metadata from file

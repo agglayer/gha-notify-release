@@ -99,7 +99,7 @@ describe('main.ts', () => {
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: '#releases',
-        text: '*New Release*: v1.2.3',
+        text: '*New Release*: owner/repo v1.2.3',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#36a64f', // Green for normal release
@@ -109,7 +109,7 @@ describe('main.ts', () => {
                 text: expect.objectContaining({
                   type: 'mrkdwn',
                   text: expect.stringContaining(
-                    '🚀 *New Release*: v1.2.3 (owner/repo)'
+                    '🚀 *New Release*: owner/repo v1.2.3'
                   )
                 })
               })
@@ -170,7 +170,7 @@ describe('main.ts', () => {
               expect.objectContaining({
                 text: expect.objectContaining({
                   text: expect.stringContaining(
-                    '⚠️🚀 *BREAKING RELEASE*: v2.0.0 (owner/repo)'
+                    '⚠️🚀 *BREAKING RELEASE*: owner/repo v2.0.0'
                   )
                 })
               })
@@ -364,7 +364,7 @@ describe('main.ts', () => {
               expect.objectContaining({
                 text: expect.objectContaining({
                   text: expect.stringContaining(
-                    '⚙️🚀 *CONFIG UPDATE*: v1.3.0 (owner/repo)'
+                    '⚙️🚀 *CONFIG UPDATE*: owner/repo v1.3.0'
                   )
                 })
               })

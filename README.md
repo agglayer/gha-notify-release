@@ -91,6 +91,8 @@ Add this to your workflow to send release notifications:
    - `chat:write.public` - Send messages to channels the app isn't in
    - `canvases:write` - Create and edit canvases (required for releases list
      feature)
+   - `channels:read` - Get channel information (optional, for better Canvas
+     naming)
 6. Click **"Install to Workspace"** at the top
 7. Copy the **"Bot User OAuth Token"** (starts with `xoxb-`)
 
@@ -162,7 +164,7 @@ You can specify the Slack channel in multiple ways:
 ### Normal Release
 
 ```
-🚀 New Release: v1.2.3 (owner/repo)
+🚀 New Release: owner/repo v1.2.3
 
 🎉 Bug fixes and improvements are here!
 
@@ -174,7 +176,7 @@ Released at 2024-01-15T10:30:00.000Z
 ### Config Update Release
 
 ```
-⚙️🚀 CONFIG UPDATE: v1.3.0 (owner/repo)
+⚙️🚀 CONFIG UPDATE: owner/repo v1.3.0
 
 🎉 Updated configuration for new features!
 
@@ -195,7 +197,7 @@ Configuration Updates:
 ### E2E Workflow Release
 
 ```
-🧪🚀 E2E WORKFLOW RELEASE: v1.4.0 (owner/repo)
+🧪🚀 E2E WORKFLOW RELEASE: owner/repo v1.4.0
 
 🎉 Release with e2e workflow validation!
 
@@ -213,7 +215,7 @@ Configuration Updates:
 ### Breaking Release (with Config)
 
 ```
-⚠️🚀 BREAKING RELEASE: v2.0.0 (owner/repo)
+⚠️🚀 BREAKING RELEASE: owner/repo v2.0.0
 
 🎉 Major update with new features!
 
@@ -391,11 +393,26 @@ breakdowns.
 
 ### Canvas Issues
 
-- Ensure the bot has `canvases:write` permission in your Slack app settings
-- Verify the bot is added to the target channel: `/invite @YourBotName`
-- Check that `maintain-releases-list` is set to `true` (default since v1.1.0)
-- Canvas creation may fail silently - check GitHub Actions logs for errors
-- Ensure your Slack workspace supports Canvas features (newer feature)
+**Permission Errors:**
+
+- `missing_scope` for `canvases:write`: Add this scope in your Slack app OAuth
+  settings
+- `missing_scope` for `channels:read`: Optional scope for better channel names
+  (or use channel IDs directly)
+
+**Channel Access Errors:**
+
+- `not_in_channel`: Add the bot to the channel with `/invite @YourBotName`
+- For private channels, the bot must be explicitly invited
+
+**Setup Issues:**
+
+- Check that `maintain-releases-list` is set to `true` (default)
+- Canvas creation may fail silently - check GitHub Actions logs for detailed
+  errors
+- Ensure your Slack workspace supports Canvas features (available in newer Slack
+  plans)
+- If Canvas already exists, the action will attempt to update it automatically
 
 ## Contributing
 
