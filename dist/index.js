@@ -57106,7 +57106,7 @@ function formatE2ETestsForSlack(analysis) {
     if (!analysis.hasE2ETests) {
         return '';
     }
-    let message = '\n\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n';
+    let message = '\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n';
     analysis.e2eWorkflowLinks.forEach((link) => {
         const statusIcon = getStatusIcon(link.status);
         // Simplify link text based on status
@@ -57120,7 +57120,7 @@ function formatE2ETestsForSlack(analysis) {
         message += `${statusIcon} <${link.url}|${linkText}> (${link.repository})\n`;
         message += `${statusIcon} Status: ${getStatusText(link.status)}\n\n`;
     });
-    return message.trim();
+    return message.trimEnd();
 }
 /**
  * Gets appropriate icon for workflow status
@@ -57503,85 +57503,6 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
             // Log markdown content size for debugging
             const contentLength = markdownContent.length;
             coreExports.info(`📊 Canvas content size: ${contentLength} characters`);
-            // Try with exact same content as debug script first
-            coreExports.info(`🧪 Testing with debug script content first...`);
-            try {
-                const debugContent = '# Test Canvas\n\nThis is a test channel canvas created by debug script.';
-                const debugResult = await client.conversations.canvases.create({
-                    channel_id: channelId,
-                    document_content: {
-                        type: 'markdown',
-                        markdown: debugContent
-                    }
-                });
-                if (debugResult.ok && debugResult.canvas_id) {
-                    coreExports.info(`✅ Debug content worked! Canvas ID: ${debugResult.canvas_id}`);
-                    // Now try to update with actual content
-                    try {
-                        await client.canvases.edit({
-                            canvas_id: debugResult.canvas_id,
-                            changes: [
-                                {
-                                    operation: 'replace',
-                                    document_content: {
-                                        type: 'markdown',
-                                        markdown: markdownContent
-                                    }
-                                }
-                            ]
-                        });
-                        coreExports.info(`✅ Successfully updated with full content`);
-                        return debugResult.canvas_id;
-                    }
-                    catch (updateError) {
-                        coreExports.warning(`⚠️ Update failed, keeping debug canvas: ${updateError.data?.error || updateError.message}`);
-                        return debugResult.canvas_id;
-                    }
-                }
-                else {
-                    coreExports.error(`❌ Debug content failed: ${debugResult.error}`);
-                }
-            }
-            catch (debugError) {
-                coreExports.error(`❌ Debug content creation failed: ${debugError.data?.error || debugError.message}`);
-                coreExports.error(`Debug error details: ${JSON.stringify(debugError.data, null, 2)}`);
-            }
-            // If content is very large, try with simplified content first
-            if (contentLength > 10000) {
-                coreExports.warning(`⚠️ Content is large (${contentLength} chars), trying simplified version first...`);
-                const simpleContent = generateSimpleCanvasMarkdown(channelName, releases);
-                coreExports.info(`📊 Simple content size: ${simpleContent.length} characters`);
-                const result = await client.conversations.canvases.create({
-                    channel_id: channelId,
-                    document_content: {
-                        type: 'markdown',
-                        markdown: simpleContent
-                    }
-                });
-                if (result.ok && result.canvas_id) {
-                    coreExports.info(`✅ Created simple canvas ${result.canvas_id}, will update with full content`);
-                    // Now try to update with full content
-                    try {
-                        await client.canvases.edit({
-                            canvas_id: result.canvas_id,
-                            changes: [
-                                {
-                                    operation: 'replace',
-                                    document_content: {
-                                        type: 'markdown',
-                                        markdown: markdownContent
-                                    }
-                                }
-                            ]
-                        });
-                        coreExports.info(`✅ Updated canvas with full content`);
-                    }
-                    catch (updateError) {
-                        coreExports.warning(`⚠️ Full content update failed, keeping simple version: ${updateError}`);
-                    }
-                    return result.canvas_id;
-                }
-            }
             const result = await client.conversations.canvases.create({
                 channel_id: channelId,
                 document_content: {
@@ -57604,7 +57525,38 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                 throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
             }
             else if (errorCode === 'channel_canvas_already_exists') {
-                throw new Error(`Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`);
+                // Try to discover the existing canvas one more time with different approach
+                coreExports.warning(`Channel canvas already exists but wasn't discovered initially. Attempting rediscovery...`);
+                // Wait a moment and try discovery again
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+                const rediscoveredCanvasId = await discoverChannelCanvas(client, channelId);
+                if (rediscoveredCanvasId) {
+                    coreExports.info(`✅ Rediscovered existing canvas: ${rediscoveredCanvasId}`);
+                    // Now update the existing canvas
+                    try {
+                        await client.canvases.edit({
+                            canvas_id: rediscoveredCanvasId,
+                            changes: [
+                                {
+                                    operation: 'replace',
+                                    document_content: {
+                                        type: 'markdown',
+                                        markdown: markdownContent
+                                    }
+                                }
+                            ]
+                        });
+                        coreExports.info(`✅ Successfully updated rediscovered canvas ${rediscoveredCanvasId}`);
+                        return rediscoveredCanvasId;
+                    }
+                    catch (updateError) {
+                        coreExports.error(`❌ Failed to update rediscovered canvas: ${updateError?.message || updateError}`);
+                        throw updateError;
+                    }
+                }
+                else {
+                    throw new Error(`Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`);
+                }
             }
             else if (errorCode === 'canvas_creation_failed') {
                 throw new Error(`Canvas creation failed. Possible causes: 1) Canvases disabled in workspace, 2) Free tier limitations, 3) Channel type doesn't support canvases, 4) Workspace admin restrictions. Channel ID: ${channelId}`);
@@ -57625,40 +57577,6 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
             throw new Error(`Canvas creation failed with error: ${errorCode}. Full details logged above.`);
         }
     }
-}
-/**
- * Generates simple markdown content for initial canvas creation
- */
-function generateSimpleCanvasMarkdown(channelName, releases) {
-    const now = new Date().toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
-    let markdown = `# 📦 Releases
-
-*Last updated: ${now}*
-
-## 🚀 Recent Releases
-
-`;
-    if (releases.length === 0) {
-        markdown += `*No releases tracked yet.*\n`;
-    }
-    else {
-        // Show only the most recent release(s) in simple format
-        const recentReleases = releases.slice(0, 3);
-        recentReleases.forEach((release) => {
-            const emoji = getChangeTypeEmoji(release.changeType);
-            const repoName = release.repositoryName || 'Unknown';
-            markdown += `- ${emoji} **${repoName} ${release.version}** • ${release.releaseDate}\n`;
-        });
-        if (releases.length > 3) {
-            markdown += `\n*And ${releases.length - 3} more releases...*\n`;
-        }
-    }
-    markdown += `\n---\n\n*This canvas will be updated with full release details shortly.*\n`;
-    return markdown;
 }
 /**
  * Generates beautiful markdown content for the canvas
@@ -57723,7 +57641,9 @@ function generateCanvasMarkdown(channelName, releases) {
             }
         }
         // Add simple summary
-        markdown += `\n## Summary
+        markdown += `
+
+## Summary
 
 **Total releases:** ${releases.length}
 **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}

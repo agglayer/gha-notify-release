@@ -322,108 +322,6 @@ async function createOrUpdateCanvas(
       const contentLength = markdownContent.length
       core.info(`📊 Canvas content size: ${contentLength} characters`)
 
-      // Try with exact same content as debug script first
-      core.info(`🧪 Testing with debug script content first...`)
-      try {
-        const debugContent =
-          '# Test Canvas\n\nThis is a test channel canvas created by debug script.'
-        const debugResult = await client.conversations.canvases.create({
-          channel_id: channelId,
-          document_content: {
-            type: 'markdown',
-            markdown: debugContent
-          }
-        })
-
-        if (debugResult.ok && debugResult.canvas_id) {
-          core.info(
-            `✅ Debug content worked! Canvas ID: ${debugResult.canvas_id}`
-          )
-
-          // Now try to update with actual content
-          try {
-            await client.canvases.edit({
-              canvas_id: debugResult.canvas_id,
-              changes: [
-                {
-                  operation: 'replace',
-                  document_content: {
-                    type: 'markdown',
-                    markdown: markdownContent
-                  }
-                }
-              ]
-            })
-            core.info(`✅ Successfully updated with full content`)
-            return debugResult.canvas_id
-          } catch (updateError: any) {
-            core.warning(
-              `⚠️ Update failed, keeping debug canvas: ${updateError.data?.error || updateError.message}`
-            )
-            return debugResult.canvas_id
-          }
-        } else {
-          core.error(`❌ Debug content failed: ${debugResult.error}`)
-        }
-      } catch (debugError: any) {
-        core.error(
-          `❌ Debug content creation failed: ${debugError.data?.error || debugError.message}`
-        )
-        core.error(
-          `Debug error details: ${JSON.stringify(debugError.data, null, 2)}`
-        )
-      }
-
-      // If content is very large, try with simplified content first
-      if (contentLength > 10000) {
-        core.warning(
-          `⚠️ Content is large (${contentLength} chars), trying simplified version first...`
-        )
-
-        const simpleContent = generateSimpleCanvasMarkdown(
-          channelName,
-          releases
-        )
-        core.info(`📊 Simple content size: ${simpleContent.length} characters`)
-
-        const result = await client.conversations.canvases.create({
-          channel_id: channelId,
-          document_content: {
-            type: 'markdown',
-            markdown: simpleContent
-          }
-        })
-
-        if (result.ok && result.canvas_id) {
-          core.info(
-            `✅ Created simple canvas ${result.canvas_id}, will update with full content`
-          )
-
-          // Now try to update with full content
-          try {
-            await client.canvases.edit({
-              canvas_id: result.canvas_id,
-              changes: [
-                {
-                  operation: 'replace',
-                  document_content: {
-                    type: 'markdown',
-                    markdown: markdownContent
-                  }
-                }
-              ]
-            })
-            core.info(`✅ Updated canvas with full content`)
-          } catch (updateError) {
-            core.warning(
-              `⚠️ Full content update failed, keeping simple version: ${updateError}`
-            )
-          }
-
-          return result.canvas_id
-        }
-      }
-
       const result = await client.conversations.canvases.create({
         channel_id: channelId,
         document_content: {
@@ -450,9 +348,50 @@ async function createOrUpdateCanvas(
           `Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`
         )
       } else if (errorCode === 'channel_canvas_already_exists') {
-        throw new Error(
-          `Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`
+        // Try to discover the existing canvas one more time with different approach
+        core.warning(
+          `Channel canvas already exists but wasn't discovered initially. Attempting rediscovery...`
         )
+
+        // Wait a moment and try discovery again
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const rediscoveredCanvasId = await discoverChannelCanvas(
+          client,
+          channelId
+        )
+
+        if (rediscoveredCanvasId) {
+          core.info(`✅ Rediscovered existing canvas: ${rediscoveredCanvasId}`)
+
+          // Now update the existing canvas
+          try {
+            await client.canvases.edit({
+              canvas_id: rediscoveredCanvasId,
+              changes: [
+                {
+                  operation: 'replace',
+                  document_content: {
+                    type: 'markdown',
+                    markdown: markdownContent
+                  }
+                }
+              ]
+            })
+            core.info(
+              `✅ Successfully updated rediscovered canvas ${rediscoveredCanvasId}`
+            )
+            return rediscoveredCanvasId
+          } catch (updateError: any) {
+            core.error(
+              `❌ Failed to update rediscovered canvas: ${updateError?.message || updateError}`
+            )
+            throw updateError
+          }
+        } else {
+          throw new Error(
+            `Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`
+          )
+        }
       } else if (errorCode === 'canvas_creation_failed') {
         throw new Error(
           `Canvas creation failed. Possible causes: 1) Canvases disabled in workspace, 2) Free tier limitations, 3) Channel type doesn't support canvases, 4) Workspace admin restrictions. Channel ID: ${channelId}`
@@ -600,7 +539,9 @@ function generateCanvasMarkdown(
     }
 
     // Add simple summary
-    markdown += `\n## Summary
+    markdown += `
+
+## Summary
 
 **Total releases:** ${releases.length}
 **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
