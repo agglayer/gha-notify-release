@@ -1,5 +1,7 @@
 name: 'Slack Release Notifier'
-description: 'Send release notifications to Slack with intelligent breaking change detection and persistent Canvas lists'
+description:
+  'Send release notifications to Slack with intelligent breaking change
+  detection and persistent Canvas lists'
 author: 'sdan'
 
 # Define your inputs here.
@@ -8,8 +10,8 @@ inputs:
     description: 'The version of the release (e.g., v1.2.3)'
     required: true
   slack-bot-token:
-    description: 'Slack bot token (optional if SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE is set)'
-    required: false
+    description: 'Slack bot token (starts with xoxb-)'
+    required: true
   slack-channel:
     description: 'Slack channel to post to (default: #feed_agglayer-notifier)'
     required: false
@@ -17,16 +19,15 @@ inputs:
   release-url:
     description: 'URL to the release page'
     required: false
-  release-notes:
-    description: 'Release notes/body content for breaking change and config analysis'
-    required: false
   custom-message:
     description: 'Custom message to include in the notification'
     required: false
   maintain-releases-list:
-    description: 'Whether to maintain a persistent Canvas with all releases in the channel (requires canvases:write permission)'
+    description:
+      'Whether to maintain a persistent Canvas with all releases in the channel
+      (requires canvases:write permission)'
     required: false
-    default: 'false'
+    default: 'true'
 
 outputs:
   notification-sent:

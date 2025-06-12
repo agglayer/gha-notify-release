@@ -38,6 +38,7 @@
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1",
     "@slack/web-api": "^7.9.2",
     "tslib": "^2.8.1"
   },

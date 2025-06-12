@@ -15,6 +15,7 @@ export interface ReleaseNotification {
   releaseUrl?: string
   releaseNotes?: string
   customMessage?: string
+  repositoryName?: string
 }
 
 /**
@@ -57,6 +58,10 @@ export async function sendReleaseNotification(
 
   // Build the main message
   let message = `${releaseEmoji} ${releaseType}: ${notification.version}`
+
+  if (notification.repositoryName) {
+    message += `\n📦 *Repository:* ${notification.repositoryName}`
+  }
 
   if (notification.customMessage) {
     message += `\n\n${notification.customMessage}`
