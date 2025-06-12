@@ -1,4 +1,5 @@
 import * as core from '@actions/core'
+import * as github from '@actions/github'
 import { sendReleaseNotification } from './slack.js'
 import { analyzeBreakingChanges } from './breaking-changes.js'
 import { analyzeConfigChanges } from './config-analysis.js'
@@ -15,39 +16,40 @@ export async function run(): Promise<void> {
   try {
     // Get inputs from action configuration
     const releaseVersion: string = core.getInput('release-version')
-    const slackBotTokenInput: string = core.getInput('slack-bot-token')
+    let slackBotToken: string = core.getInput('slack-bot-token')
     const slackChannel: string =
       core.getInput('slack-channel') || '#feed_agglayer-notifier'
     const releaseUrl: string = core.getInput('release-url')
-    const releaseNotes: string = core.getInput('release-notes')
     const customMessage: string = core.getInput('custom-message')
     const maintainReleasesList: boolean =
       core.getInput('maintain-releases-list') === 'true'
 
-    // Determine bot token - use input if provided, otherwise try Agglayer default
-    let slackBotToken: string = slackBotTokenInput
-    if (!slackBotToken) {
-      slackBotToken = process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE || ''
-      if (slackBotToken) {
-        core.info('Using default Agglayer bot token')
-      }
-    }
+    // Get release notes from GitHub context
+    const releaseNotes: string =
+      (github.context.payload.release?.body as string) || ''
 
     // Validate required inputs
     if (!releaseVersion) {
       throw new Error('release-version is required')
     }
+
+    // Handle bot token with fallback to environment variable
     if (!slackBotToken) {
-      throw new Error(
-        'slack-bot-token is required. Either provide it as an input or ensure SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret is available.'
-      )
+      // Try to get token from environment variable as fallback
+      const fallbackToken = process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE
+      if (fallbackToken) {
+        slackBotToken = fallbackToken
+        core.info('Using default Agglayer bot token')
+      } else {
+        throw new Error(
+          'slack-bot-token is required. Either provide it as an input or ensure SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret is available.'
+        )
+      }
     }
 
     core.info(`Sending release notification for version: ${releaseVersion}`)
     core.debug(`Target channel: ${slackChannel}`)
-    if (releaseNotes) {
-      core.debug(`Release notes provided for breaking change analysis`)
-    }
+    core.debug(`Release notes length: ${releaseNotes.length} characters`)
     if (maintainReleasesList) {
       core.debug(`Releases list maintenance enabled`)
     }
@@ -57,12 +59,17 @@ export async function run(): Promise<void> {
     const configAnalysis = analyzeConfigChanges(releaseNotes)
     const e2eAnalysis = analyzeE2ETests(releaseNotes)
 
+    // Get repository name from GitHub context
+    const repositoryName =
+      github.context.repo.owner + '/' + github.context.repo.repo
+
     // Send the Slack notification
     await sendReleaseNotification(slackBotToken, slackChannel, {
       version: releaseVersion,
       releaseUrl: releaseUrl || undefined,
       releaseNotes: releaseNotes || undefined,
-      customMessage: customMessage || undefined
+      customMessage: customMessage || undefined,
+      repositoryName
     })
 
     core.info('Release notification sent successfully!')
@@ -101,9 +108,11 @@ export async function run(): Promise<void> {
       )
 
       if (releasesListUpdated) {
-        core.info('Releases list updated successfully!')
+        core.info('Releases list Canvas updated successfully!')
       } else {
-        core.warning('Failed to update releases list')
+        core.warning(
+          'Failed to update releases list Canvas. Check if the bot has canvases:write permission and access to the channel.'
+        )
       }
     }
 

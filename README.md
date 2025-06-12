@@ -9,18 +9,20 @@ token with intelligent breaking change and configuration change detection.
 - ⚠️ **Smart breaking change detection** from release notes and conventional
   commits
 - ⚙️ **Configuration change detection** for config files and diffs
-- 📋 **Persistent releases list** - maintains a running list of all releases per channel
-- 🎨 **Visual highlighting** with color-coded messages for different release types
+- 📋 **Persistent releases list** - maintains a running list of all releases per
+  channel
+- 🎨 **Visual highlighting** with color-coded messages for different release
+  types
 - 📝 Supports custom messages
 - 🔗 Includes release URLs
 - ✨ Beautiful formatting with emojis and timestamps
 - 🎯 Flexible channel targeting
 - 🔧 Simple setup with Slack bot tokens
-- ⚡ Zero configuration for Agglayer projects
 
 ## Intelligent Detection
 
-The action automatically analyzes release notes and detects different types of changes:
+The action automatically analyzes release notes and detects different types of
+changes:
 
 ### 🔍 Breaking Change Detection
 
@@ -32,7 +34,8 @@ The action automatically analyzes release notes and detects different types of c
 
 ### ⚙️ Configuration Change Detection
 
-1. **Config file links**: Detects markdown links to config files (`.json`, `.yaml`, `.env`, etc.)
+1. **Config file links**: Detects markdown links to config files (`.json`,
+   `.yaml`, `.env`, etc.)
 2. **Configuration diffs**: Finds code blocks with config file changes
 3. **Before/After sections**: Identifies configuration comparisons
 4. **Config mentions**: Catches bullet points mentioning config updates
@@ -45,9 +48,11 @@ The action automatically analyzes release notes and detects different types of c
 
 ### 📋 Persistent Releases List
 
-When enabled, the action maintains a single Canvas document per channel that contains all releases:
+When enabled, the action maintains a single Canvas document per channel that
+contains all releases:
+
 - **Auto-updating**: Each new release updates the same Canvas
-- **Smart formatting**: Visual indicators for breaking/config changes  
+- **Smart formatting**: Visual indicators for breaking/config changes
 - **Historical tracking**: Keeps last 50 releases with dates
 - **Per-channel**: Separate Canvas for each Slack channel used
 - **Rich formatting**: Beautiful structured markdown with statistics and legends
@@ -57,27 +62,25 @@ When enabled, the action maintains a single Canvas document per channel that con
 
 - **Normal releases**: 🚀 Green sidebar, "New Release"
 - **E2E workflow releases**: 🧪🚀 Cyan sidebar, "E2E WORKFLOW RELEASE"
-- **Config updates**: ⚙️🚀 Yellow sidebar, "CONFIG UPDATE" 
-- **Breaking releases**: ⚠️🚀 Orange sidebar, "BREAKING RELEASE" (highest priority)
+- **Config updates**: ⚙️🚀 Yellow sidebar, "CONFIG UPDATE"
+- **Breaking releases**: ⚠️🚀 Orange sidebar, "BREAKING RELEASE" (highest
+  priority)
 
-## Quick Start (For Agglayer Projects)
+## Quick Start
 
-If you're using this in an Agglayer repository, it works out of the box with no
-token configuration needed:
+Add this to your workflow to send release notifications:
 
 ```yaml
 - name: Notify Slack
   uses: agglayer/gha-notify-release@v1
   with:
+    slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
     release-version: ${{ github.event.release.tag_name }}
-    release-notes: ${{ github.event.release.body }}
     release-url: ${{ github.event.release.html_url }}
-    custom-message: '🎉 New XXX release is now available!'
+    custom-message: '🎉 New release is now available!'
 ```
 
-That's it! The action automatically uses the pre-configured Agglayer bot token.
-
-## Setup (For Other Projects)
+## Setup
 
 ### 1. Create a Slack App and Bot
 
@@ -88,7 +91,8 @@ That's it! The action automatically uses the pre-configured Agglayer bot token.
 5. Scroll down to **"Scopes"** and add these Bot Token Scopes:
    - `chat:write` - Send messages
    - `chat:write.public` - Send messages to channels the app isn't in
-   - `canvases:write` - Create and edit canvases (required for releases list feature)
+   - `canvases:write` - Create and edit canvases (required for releases list
+     feature)
 6. Click **"Install to Workspace"** at the top
 7. Copy the **"Bot User OAuth Token"** (starts with `xoxb-`)
 
@@ -110,8 +114,6 @@ For each channel where you want notifications:
 
 ## Usage
 
-### For Agglayer Projects (Zero Config)
-
 ```yaml
 name: Release Notification
 
@@ -126,56 +128,32 @@ jobs:
       - name: Notify Slack
         uses: agglayer/gha-notify-release@v1
         with:
-          release-version: ${{ github.event.release.tag_name }}
-          release-notes: ${{ github.event.release.body }}
-          release-url: ${{ github.event.release.html_url }}
-          custom-message: '🎉 New Agglayer release is now available!'
-```
-
-### For Other Projects
-
-```yaml
-name: Release Notification
-
-on:
-  release:
-    types: [published]
-
-jobs:
-  notify-slack:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Slack
-        uses: agglayer/gha-notify-release@v1
-        with:
-          release-version: ${{ github.event.release.tag_name }}
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          release-version: ${{ github.event.release.tag_name }}
           slack-channel: 'releases' # or '#releases' or channel ID
-          release-notes: ${{ github.event.release.body }}
           release-url: ${{ github.event.release.html_url }}
           custom-message: '🎉 Our latest release is now available!'
 ```
 
 ## Inputs
 
-| Input             | Description                                                              | Required | Default                   |
-| ----------------- | ------------------------------------------------------------------------ | -------- | ------------------------- |
-| `release-version` | The version of the release                                               | Yes      | `X.Y.Z`                   |
-| `slack-bot-token` | Slack Bot Token (starts with xoxb-). Auto-detected for Agglayer projects | No       | -                         |
-| `slack-channel`   | Channel name (#releases), name (releases), or ID (C1234567890)           | No       | `#feed_agglayer-notifier` |
-| `release-url`     | URL to the release page                                                  | No       | -                         |
-| `release-notes`   | Release notes/body for breaking change analysis                          | No       | -                         |
-| `custom-message`  | Custom message to include with the release notification                  | No       | -                         |
-| `maintain-releases-list` | Enable persistent releases list maintenance                       | No       | `false`                   |
+| Input                    | Description                                                    | Required | Default                   |
+| ------------------------ | -------------------------------------------------------------- | -------- | ------------------------- |
+| `release-version`        | The version of the release                                     | Yes      | `X.Y.Z`                   |
+| `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -                         |
+| `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | No       | `#feed_agglayer-notifier` |
+| `release-url`            | URL to the release page                                        | No       | -                         |
+| `custom-message`         | Custom message to include with the release notification        | No       | -                         |
+| `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`                    |
 
 ## Outputs
 
-| Output              | Description                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| `notification-sent` | Whether the notification was sent successfully (`true`/`false`) |
-| `timestamp`         | ISO timestamp of when the notification was sent                 |
-| `channel`           | The channel where the notification was sent                     |
-| `releases-list-updated` | Whether the releases list was updated (if enabled)          |
+| Output                  | Description                                                     |
+| ----------------------- | --------------------------------------------------------------- |
+| `notification-sent`     | Whether the notification was sent successfully (`true`/`false`) |
+| `timestamp`             | ISO timestamp of when the notification was sent                 |
+| `channel`               | The channel where the notification was sent                     |
+| `releases-list-updated` | Whether the releases list was updated (if enabled)              |
 
 ## Channel Formats
 
@@ -191,6 +169,7 @@ You can specify the Slack channel in multiple ways:
 
 ```
 🚀 New Release: v1.2.3
+📦 Repository: owner/repo
 
 🎉 Bug fixes and improvements are here!
 
@@ -203,6 +182,8 @@ Released at 2024-01-15T10:30:00.000Z
 
 ```
 ⚙️🚀 CONFIG UPDATE: v1.3.0
+📦 Repository: owner/repo
+
 🎉 Updated configuration for new features!
 
 ⚙️ CONFIGURATION CHANGES
@@ -223,6 +204,8 @@ Configuration Updates:
 
 ```
 🧪🚀 E2E WORKFLOW RELEASE: v1.4.0
+📦 Repository: owner/repo
+
 🎉 Release with e2e workflow validation!
 
 🧪 E2E WORKFLOWS DETECTED
@@ -240,6 +223,8 @@ Configuration Updates:
 
 ```
 ⚠️🚀 BREAKING RELEASE: v2.0.0
+📦 Repository: owner/repo
+
 🎉 Major update with new features!
 
 ⚠️ BREAKING CHANGES DETECTED
@@ -267,27 +252,30 @@ Configuration Files:
 ```markdown
 # 📦 MyProject Releases
 
-*Last updated: Mon, Jan 15, 2024, 10:30 AM PST*
+_Last updated: Mon, Jan 15, 2024, 10:30 AM PST_
 
 ---
 
 ## 🚀 Recent Releases
 
 ### ⚠️🚀 v2.0.0
-**Jan 15, 2024** • ⚠️ *Breaking* • ⚙️ *Config*
 
-### ⚙️🚀 v1.3.0  
-**Jan 10, 2024** • ⚙️ *Config*
+**Jan 15, 2024** • ⚠️ _Breaking_ • ⚙️ _Config_
+
+### ⚙️🚀 v1.3.0
+
+**Jan 10, 2024** • ⚙️ _Config_
 
 ### 🚀 v1.2.3
+
 **Jan 5, 2024**
 
 ---
 
 ### 📋 All Releases (15 total)
 
-- ⚠️🚀 **v2.0.0** • Jan 15, 2024 • ⚠️ *Breaking* • ⚙️ *Config*
-- ⚙️🚀 **v1.3.0** • Jan 10, 2024 • ⚙️ *Config*
+- ⚠️🚀 **v2.0.0** • Jan 15, 2024 • ⚠️ _Breaking_ • ⚙️ _Config_
+- ⚙️🚀 **v1.3.0** • Jan 10, 2024 • ⚙️ _Config_
 - 🚀 **v1.2.3** • Jan 5, 2024
 - 🚀 **v1.2.2** • Dec 28, 2023
 
@@ -303,12 +291,12 @@ Configuration Files:
 ## 📖 Legend
 
 - 🚀 **Normal Release** - Regular updates and improvements
-- ⚠️🚀 **Breaking Changes** - May require code changes  
+- ⚠️🚀 **Breaking Changes** - May require code changes
 - ⚙️🚀 **Config Updates** - Configuration files may need updates
 
 ---
 
-*This canvas is automatically maintained by the release notification system.*
+_This canvas is automatically maintained by the release notification system._
 ```
 
 ## Breaking Change Examples
@@ -355,7 +343,6 @@ The action detects various patterns of breaking changes:
     release-version: ${{ github.event.release.tag_name }}
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
     slack-channel: ${{ matrix.channel }}
-    release-notes: ${{ github.event.release.body }}
 ```
 
 ### Conditional Notifications
@@ -365,41 +352,17 @@ The action detects various patterns of breaking changes:
   if: startsWith(github.event.release.tag_name, 'v')
   uses: agglayer/gha-notify-release@v1
     with:
+    slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
     release-version: ${{ github.event.release.tag_name }}
-    slack-channel: 'releases'
-    release-notes: ${{ github.event.release.body }}
-```
-
-### Override Bot Token (Agglayer Projects)
-
-If an Agglayer project needs to use a different bot token:
-
-   ```yaml
-- name: Notify Slack with Custom Bot
-  uses: agglayer/gha-notify-release@v1
-  with:
-    release-version: ${{ github.event.release.tag_name }}
-    slack-bot-token: ${{ secrets.CUSTOM_SLACK_BOT_TOKEN }}
     slack-channel: 'releases'
 ```
 
 ## How It Works
 
-### Bot Token Detection
-
-The action automatically detects the environment:
-
-1. **If `slack-bot-token` is provided**: Uses the provided token
-2. **If no token provided**: Automatically looks for
-   `SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE` secret
-3. **If neither available**: Shows helpful error message
-
-This means Agglayer projects get zero-configuration usage, while other projects
-maintain full flexibility.
-
 ### Breaking Change Analysis
 
-The action analyzes the `release-notes` input using multiple detection methods:
+The action automatically analyzes the release notes from the GitHub release
+event using multiple detection methods:
 
 1. **Regex patterns** for conventional commit markers (`!`)
 2. **Section parsing** for explicit "BREAKING CHANGES" sections
@@ -414,10 +377,10 @@ breakdowns.
 ### Bot Token Issues
 
 - Make sure your token starts with `xoxb-`
-- Verify the bot has `chat:write`, `chat:write.public`, and `canvases:write` permissions
+- Verify the bot has `chat:write`, `chat:write.public`, and `canvases:write`
+  permissions
 - Check that the bot is installed in your workspace
-- For Agglayer projects: Ensure the `SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE`
-  secret is available
+- Ensure the `SLACK_BOT_TOKEN` secret is properly set in your repository
 
 ### Channel Issues
 
@@ -433,10 +396,18 @@ breakdowns.
 
 ### Breaking Change Detection
 
-- Ensure `release-notes` input contains the release body
+- The action automatically uses the release body from the GitHub release event
 - Use conventional commit format for best detection: `type!: description`
 - Include explicit "BREAKING CHANGES" sections in release notes
 - Check that keywords like "removed", "deprecated" are properly formatted
+
+### Canvas Issues
+
+- Ensure the bot has `canvases:write` permission in your Slack app settings
+- Verify the bot is added to the target channel: `/invite @YourBotName`
+- Check that `maintain-releases-list` is set to `true` (default since v1.1.0)
+- Canvas creation may fail silently - check GitHub Actions logs for errors
+- Ensure your Slack workspace supports Canvas features (newer feature)
 
 ## Contributing
 
@@ -448,7 +419,8 @@ This project is licensed under the MIT License.
 
 ### Complete Workflow Examples
 
-#### Basic Agglayer Release Workflow
+#### Basic Release Workflow
+
 ```yaml
 name: Release Notification
 
@@ -463,17 +435,18 @@ jobs:
       - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           release-version: ${{ github.event.release.tag_name }}
-          release-notes: ${{ github.event.release.body }}
           release-url: ${{ github.event.release.html_url }}
           custom-message: |
             🎉 New ${{ github.repository }} release is available!
-            
+
             **Repository:** ${{ github.repository }}
             **Actor:** ${{ github.actor }}
 ```
 
 #### Advanced Multi-Channel Notification
+
 ```yaml
 name: Release Notification
 
@@ -497,14 +470,15 @@ jobs:
       - name: Notify Slack Channel
         uses: agglayer/gha-notify-release@v1
         with:
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           release-version: ${{ github.event.release.tag_name }}
           slack-channel: ${{ matrix.notification.channel }}
-          release-notes: ${{ github.event.release.body }}
           release-url: ${{ github.event.release.html_url }}
           custom-message: ${{ matrix.notification.message }}
 ```
 
 #### Conditional Breaking Change Alerts
+
 ```yaml
 name: Release Notification
 
@@ -519,12 +493,12 @@ jobs:
       - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           release-version: ${{ github.event.release.tag_name }}
-          release-notes: ${{ github.event.release.body }}
           release-url: ${{ github.event.release.html_url }}
           custom-message: |
             ${{ startsWith(github.event.release.tag_name, 'v') && contains(github.event.release.body, 'BREAKING') && '🚨 **CRITICAL UPDATE** 🚨' || '✨ Regular update available' }}
-            
+
             Release: ${{ github.event.release.tag_name }}
             Changelog: See release notes for details
 ```
