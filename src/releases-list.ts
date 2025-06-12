@@ -539,31 +539,27 @@ function generateCanvasMarkdown(
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
-    minute: '2-digit',
-    timeZoneName: 'short'
+    minute: '2-digit'
   })
 
   let markdown = `# 📦 Releases
 
 *Last updated: ${now}*
 
----
-
 ## 🚀 Recent Releases
 
 `
 
   if (releases.length === 0) {
-    markdown += `
-*No releases tracked yet. This list will be automatically updated when releases are published.*
+    markdown += `*No releases tracked yet. This list will be automatically updated when releases are published.*
 
-🎯 **What you'll see here:**
-- 🚀 **Normal releases** - Regular updates and improvements
-- ⚠️🚀 **Breaking changes** - Releases with breaking changes
-- ⚙️🚀 **Configuration updates** - Releases affecting configuration files
-- 🧪🚀 **E2E Workflows** - Releases with end-to-end workflow links
+**What you'll see here:**
+- 🚀 Normal releases - Regular updates and improvements  
+- ⚠️🚀 Breaking changes - Releases with breaking changes
+- ⚙️🚀 Configuration updates - Releases affecting configuration files
+- 🧪🚀 E2E Workflows - Releases with end-to-end workflow links
 
-📝 **Note:** This list automatically tracks the last 50 releases published to this channel.
+*Note: This list automatically tracks the last 50 releases published to this channel.*
 `
   } else {
     // Group releases by repository
@@ -577,24 +573,24 @@ function generateCanvasMarkdown(
       releasesByRepo.get(repoName)!.push(release)
     })
 
-    // Display releases grouped by repository
+    // Display releases grouped by repository (simplified)
     let totalDisplayed = 0
     for (const [repoName, repoReleases] of releasesByRepo.entries()) {
-      markdown += `\n#### 📁 \`${repoName}\`\n\n`
+      markdown += `\n### ${repoName}\n\n`
 
       repoReleases.forEach((release, index) => {
-        const isRecent = totalDisplayed < 5
         const emoji = getChangeTypeEmoji(release.changeType)
-        const badges = generateBadges(release)
         const releaseLink = release.releaseUrl
           ? `[${release.version}](${release.releaseUrl})`
           : release.version
 
-        if (isRecent) {
-          markdown += `**${emoji} ${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n\n`
-        } else {
-          markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
-        }
+        const badgeText = []
+        if (release.hasBreaking) badgeText.push('Breaking')
+        if (release.hasConfig) badgeText.push('Config')
+        if (release.hasE2E) badgeText.push('E2E')
+        const badges = badgeText.length > 0 ? ` (${badgeText.join(', ')})` : ''
+
+        markdown += `- ${emoji} **${releaseLink}** - ${release.releaseDate}${badges}\n`
         totalDisplayed++
       })
 
@@ -603,51 +599,13 @@ function generateCanvasMarkdown(
       }
     }
 
-    if (releases.length > 5) {
-      markdown += `\n---\n\n### 📋 All Releases (${releases.length} total)\n\n`
+    // Add simple summary
+    markdown += `\n## Summary
 
-      // Group all releases by repository for the complete list
-      for (const [repoName, repoReleases] of releasesByRepo.entries()) {
-        if (repoReleases.length > 0) {
-          markdown += `\n**📁 \`${repoName}\`**\n\n`
-          repoReleases.forEach((release) => {
-            const emoji = getChangeTypeEmoji(release.changeType)
-            const badges = generateBadges(release)
-            const releaseLink = release.releaseUrl
-              ? `[${release.version}](${release.releaseUrl})`
-              : release.version
-
-            markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
-          })
-          markdown += `\n`
-        }
-      }
-    }
-
-    markdown += `
-
----
-
-## 📊 Release Statistics
-
-- **Total releases tracked:** ${releases.length}
-- **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
-- **Configuration updates:** ${releases.filter((r) => r.hasConfig).length}
-- **E2E workflows:** ${releases.filter((r) => r.hasE2E).length}
-- **Normal releases:** ${releases.filter((r) => r.changeType === 'normal').length}
-
-## 📖 Legend
-
-- 🚀 **Normal Release** - Regular updates and improvements
-- ⚠️🚀 **Breaking Changes** - May require code changes
-- ⚙️🚀 **Config Updates** - Configuration files may need updates
-- 🧪🚀 **E2E Workflows** - End-to-end workflow links detected
-- 🆕 **New** - Latest release
-- ⚠️ **Breaking** - Contains breaking changes
-- ⚙️ **Config** - Contains configuration changes
-- 🧪 **E2E Workflows** - End-to-end workflow links
-
----
+**Total releases:** ${releases.length}
+**Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
+**Config updates:** ${releases.filter((r) => r.hasConfig).length}
+**E2E workflows:** ${releases.filter((r) => r.hasE2E).length}
 
 *This canvas is automatically maintained by the release notification system.*
 `
@@ -670,27 +628,6 @@ function getChangeTypeEmoji(changeType: string): string {
     default:
       return '🚀'
   }
-}
-
-/**
- * Generates badges for a release
- */
-function generateBadges(release: ReleaseEntry): string {
-  const badges: string[] = []
-
-  if (release.hasBreaking) {
-    badges.push('⚠️ *Breaking*')
-  }
-
-  if (release.hasConfig) {
-    badges.push('⚙️ *Config*')
-  }
-
-  if (release.hasE2E) {
-    badges.push('🧪 *E2E Workflows*')
-  }
-
-  return badges.length > 0 ? `• ${badges.join(' • ')}` : ''
 }
 
 /**
