@@ -57288,8 +57288,42 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
             coreExports.error(`Could not find channel ID for ${channel}`);
             return false;
         }
-        // Discover existing canvas ID using conversations.info
-        const existingCanvasId = await discoverChannelCanvas(client, channelId);
+        // Try multiple discovery attempts with increasing aggression
+        let existingCanvasId;
+        coreExports.info(`🔍 Starting aggressive canvas discovery for channel ${channelId}`);
+        // Attempt 1: Standard discovery
+        existingCanvasId = await discoverChannelCanvas(client, channelId);
+        if (!existingCanvasId) {
+            coreExports.info(`🔍 First discovery attempt failed, trying with delay...`);
+            // Attempt 2: Wait and try again (canvas creation might need time to propagate)
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            existingCanvasId = await discoverChannelCanvas(client, channelId);
+        }
+        if (!existingCanvasId) {
+            coreExports.info(`🔍 Second discovery attempt failed, trying files.list approach...`);
+            // Attempt 3: Try to find canvas using files.list
+            try {
+                const filesResult = await client.files.list({
+                    channel: channelId,
+                    types: 'canvas',
+                    count: 20
+                });
+                if (filesResult.ok &&
+                    filesResult.files &&
+                    filesResult.files.length > 0) {
+                    coreExports.info(`📋 Found ${filesResult.files.length} canvas files via files.list`);
+                    // Take the most recent canvas file
+                    const latestCanvas = filesResult.files[0];
+                    if (latestCanvas.id) {
+                        coreExports.info(`✅ Using latest canvas from files.list: ${latestCanvas.id}`);
+                        existingCanvasId = latestCanvas.id;
+                    }
+                }
+            }
+            catch (filesError) {
+                coreExports.debug(`Could not list canvas files: ${filesError}`);
+            }
+        }
         if (existingCanvasId) {
             coreExports.info(`📋 Found existing canvas ${existingCanvasId} for channel ${channelId}`);
         }
@@ -57297,7 +57331,7 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
             coreExports.info(`📋 No existing canvas found for channel ${channelId}`);
         }
         // Load existing releases from canvas content or create new list
-        const releases = existingCanvasId
+        const releases = existingCanvasId && existingCanvasId !== 'CANVAS_EXISTS_BUT_ID_UNKNOWN'
             ? await loadReleasesFromCanvas(client, existingCanvasId)
             : [];
         // Add the new release to the beginning of the list
@@ -57326,6 +57360,10 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         else if (errorMessage.includes('channel_canvas_already_exists')) {
             coreExports.warning(`⚠️ Canvas update failed: Channel canvas already exists but couldn't be discovered. Please check the channel's Canvas tab.`);
         }
+        else if (errorMessage.includes('Canvas exists but cannot be discovered')) {
+            coreExports.warning(`⚠️ Canvas update skipped: Canvas exists but discovery failed. Canvas content may be out of date.`);
+            return true; // Don't fail the action, just warn
+        }
         else {
             coreExports.error(`❌ Failed to update releases list canvas: ${errorMessage}`);
         }
@@ -57333,19 +57371,33 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
     }
 }
 /**
- * Discovers existing channel canvas using conversations.info
+ * Discovers existing channel canvas using multiple methods
  */
 async function discoverChannelCanvas(client, channelId) {
+    coreExports.info(`🔍 Attempting to discover existing canvas for channel ${channelId}`);
+    // Method 1: Try conversations.info first
     try {
         const result = await client.conversations.info({
             channel: channelId,
             include_num_members: false
         });
         if (result.ok && result.channel) {
-            // Check if channel has a canvas property
             const channel = result.channel;
-            if (channel.properties?.canvas?.file_id) {
-                return channel.properties.canvas.file_id;
+            coreExports.debug(`📋 Channel info response: ${JSON.stringify(channel, null, 2)}`);
+            // Check multiple possible canvas field locations
+            const canvasId = channel.properties?.canvas?.file_id ||
+                channel.canvas?.file_id ||
+                channel.properties?.canvas_id ||
+                channel.canvas_id ||
+                channel.properties?.canvas?.id ||
+                channel.canvas?.id;
+            if (canvasId) {
+                coreExports.info(`✅ Found existing canvas via conversations.info: ${canvasId}`);
+                return canvasId;
+            }
+            else {
+                coreExports.info(`📋 No canvas found in channel properties`);
+                coreExports.debug(`Available properties: ${JSON.stringify(channel.properties, null, 2)}`);
             }
         }
     }
@@ -57354,9 +57406,103 @@ async function discoverChannelCanvas(client, channelId) {
             coreExports.info('Note: Bot needs channels:read permission to discover existing canvases automatically');
         }
         else {
-            coreExports.warning(`Could not discover canvas for channel ${channelId}: ${error}`);
+            coreExports.warning(`Could not discover canvas via conversations.info for channel ${channelId}: ${error}`);
         }
     }
+    // Method 2: Try canvases.list API if available
+    try {
+        coreExports.info(`🔍 Trying canvases list API for channel ${channelId}`);
+        // Try to list canvases - this might work depending on the API
+        const listResult = await client.canvases.list({
+            limit: 50
+        });
+        if (listResult.ok && listResult.canvases) {
+            coreExports.debug(`📋 Found ${listResult.canvases.length} canvases in workspace`);
+            // Look for a canvas that might belong to this channel
+            for (const canvas of listResult.canvases) {
+                coreExports.debug(`📋 Checking canvas: ${JSON.stringify(canvas, null, 2)}`);
+                // Check if this canvas is associated with our channel
+                if (canvas.channel_id === channelId ||
+                    canvas.channel === channelId ||
+                    (canvas.properties && canvas.properties.channel_id === channelId)) {
+                    coreExports.info(`✅ Found existing canvas via canvases.list: ${canvas.id || canvas.canvas_id}`);
+                    return canvas.id || canvas.canvas_id;
+                }
+            }
+        }
+    }
+    catch (error) {
+        coreExports.debug(`Could not use canvases.list API: ${error}`);
+    }
+    // Method 3: Try creating a canvas to see if we get "already exists" error
+    try {
+        coreExports.info(`🔍 Testing canvas creation to detect existing canvas`);
+        const testResult = await client.conversations.canvases.create({
+            channel_id: channelId,
+            document_content: {
+                type: 'markdown',
+                markdown: '# Test Canvas Detection\n\nThis is a temporary test to detect existing canvas.'
+            }
+        });
+        if (testResult.ok && testResult.canvas_id) {
+            // If creation succeeded, we need to delete this test canvas and return undefined
+            coreExports.warning(`⚠️ Test canvas creation succeeded unexpectedly: ${testResult.canvas_id}`);
+            // Try to delete the test canvas
+            try {
+                await client.files.delete({
+                    file: testResult.canvas_id
+                });
+                coreExports.info(`🗑️ Deleted test canvas ${testResult.canvas_id}`);
+            }
+            catch (deleteError) {
+                coreExports.warning(`Could not delete test canvas: ${deleteError}`);
+            }
+            return undefined;
+        }
+    }
+    catch (testError) {
+        const errorCode = testError.data?.error || testError.message;
+        if (errorCode === 'channel_canvas_already_exists' ||
+            errorCode === 'free_team_canvas_tab_already_exists') {
+            coreExports.info(`✅ Confirmed existing canvas exists (error: ${errorCode})`);
+            // Try conversations.info one more time with more detailed logging
+            try {
+                const retryResult = await client.conversations.info({
+                    channel: channelId,
+                    include_num_members: true
+                });
+                if (retryResult.ok && retryResult.channel) {
+                    const channel = retryResult.channel;
+                    coreExports.info(`🔍 Detailed channel info after canvas exists error:`);
+                    coreExports.info(`  - Channel ID: ${channel.id}`);
+                    coreExports.info(`  - Channel Name: ${channel.name}`);
+                    coreExports.info(`  - Is Member: ${channel.is_member}`);
+                    coreExports.info(`  - Properties: ${JSON.stringify(channel.properties, null, 2)}`);
+                    // Check all possible canvas field locations again
+                    const canvasId = channel.properties?.canvas?.file_id ||
+                        channel.canvas?.file_id ||
+                        channel.properties?.canvas_id ||
+                        channel.canvas_id ||
+                        channel.properties?.canvas?.id ||
+                        channel.canvas?.id;
+                    if (canvasId) {
+                        coreExports.info(`✅ Found canvas ID after retry: ${canvasId}`);
+                        return canvasId;
+                    }
+                }
+            }
+            catch (retryError) {
+                coreExports.warning(`Retry conversations.info failed: ${retryError}`);
+            }
+            // If we can't find the canvas ID but know it exists, we need to handle this case
+            coreExports.warning(`⚠️ Canvas exists but could not discover ID. Will attempt alternative approach.`);
+            return 'CANVAS_EXISTS_BUT_ID_UNKNOWN';
+        }
+        else {
+            coreExports.debug(`Test canvas creation failed with different error: ${errorCode}`);
+        }
+    }
+    coreExports.info(`📋 No existing canvas found for channel ${channelId}`);
     return undefined;
 }
 /**
@@ -57368,7 +57514,6 @@ async function loadReleasesFromCanvas(client, canvasId) {
         const result = await client.files.info({ file: canvasId });
         if (result.ok && result.file) {
             // Try to extract releases from canvas markdown content
-            // This is a simplified parser - in a real implementation you might want more robust parsing
             const content = result.file.plain_text || '';
             return parseReleasesFromMarkdown(content);
         }
@@ -57380,46 +57525,38 @@ async function loadReleasesFromCanvas(client, canvasId) {
 }
 /**
  * Simple parser to extract releases from markdown content
- * This looks for our specific release format in the canvas
  */
 function parseReleasesFromMarkdown(content) {
     const releases = [];
     try {
-        // Look for repository sections like #### 📁 `repo/name`
-        const repoSections = content.split(/#### 📁 `([^`]+)`/);
+        // Look for repository sections like ### repo/name
+        const repoSections = content.split(/### ([^#\n]+)/);
         for (let i = 1; i < repoSections.length; i += 2) {
-            const repositoryName = repoSections[i];
+            const repositoryName = repoSections[i].trim();
             const sectionContent = repoSections[i + 1];
-            // Look for release entries like **🚀 v1.2.3** • Jan 15, 2024
-            const releaseMatches = sectionContent.matchAll(/\*\*([^*]+)\*\* • ([^•\n]+)/g);
+            // Look for release entries like - 🚀 **[v1.2.3](url)** - Jan 15, 2024
+            const releaseMatches = sectionContent.matchAll(/- ([🚀⚠️⚙️🧪]+) \*\*\[([^\]]+)\]\([^)]+\)\*\* - ([^(]+)(?:\([^)]*\))?/g);
             for (const match of releaseMatches) {
-                const versionEmoji = match[1];
-                const releaseDate = match[2].trim();
-                // Extract version from emoji + version format
-                const versionMatch = versionEmoji.match(/🚀 (.+)$|⚠️🚀 (.+)$|⚙️🚀 (.+)$|🧪🚀 (.+)$/);
-                if (versionMatch) {
-                    const version = versionMatch[1] ||
-                        versionMatch[2] ||
-                        versionMatch[3] ||
-                        versionMatch[4];
-                    // Determine change type from emoji
-                    let changeType = 'normal';
-                    if (versionEmoji.includes('⚠️🚀'))
-                        changeType = 'breaking';
-                    else if (versionEmoji.includes('⚙️🚀'))
-                        changeType = 'config';
-                    else if (versionEmoji.includes('🧪🚀'))
-                        changeType = 'e2e';
-                    releases.push({
-                        version,
-                        releaseDate,
-                        changeType,
-                        hasBreaking: changeType === 'breaking',
-                        hasConfig: changeType === 'config',
-                        hasE2E: changeType === 'e2e',
-                        repositoryName
-                    });
-                }
+                const emoji = match[1];
+                const version = match[2];
+                const releaseDate = match[3].trim();
+                // Determine change type from emoji
+                let changeType = 'normal';
+                if (emoji.includes('⚠️'))
+                    changeType = 'breaking';
+                else if (emoji.includes('⚙️'))
+                    changeType = 'config';
+                else if (emoji.includes('🧪'))
+                    changeType = 'e2e';
+                releases.push({
+                    version,
+                    releaseDate,
+                    changeType,
+                    hasBreaking: changeType === 'breaking',
+                    hasConfig: changeType === 'config',
+                    hasE2E: changeType === 'e2e',
+                    repositoryName
+                });
             }
         }
     }
@@ -57470,7 +57607,7 @@ async function debugChannelInfo(client, channelId) {
  */
 async function createOrUpdateCanvas(client, channelId, channelName, releases, existingCanvasId) {
     const markdownContent = generateCanvasMarkdown(channelName, releases);
-    if (existingCanvasId) {
+    if (existingCanvasId && existingCanvasId !== 'CANVAS_EXISTS_BUT_ID_UNKNOWN') {
         // Update existing canvas
         coreExports.info(`📝 Updating existing canvas ${existingCanvasId}`);
         try {
@@ -57495,6 +57632,53 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
         }
     }
     else {
+        // Handle case where we know canvas exists but don't have ID
+        if (existingCanvasId === 'CANVAS_EXISTS_BUT_ID_UNKNOWN') {
+            coreExports.warning(`⚠️ Canvas exists but ID unknown. Attempting creative solution...`);
+            // Try to get canvas files for this channel
+            try {
+                const filesResult = await client.files.list({
+                    channel: channelId,
+                    types: 'canvas',
+                    count: 10
+                });
+                if (filesResult.ok &&
+                    filesResult.files &&
+                    filesResult.files.length > 0) {
+                    coreExports.info(`📋 Found ${filesResult.files.length} canvas files in channel`);
+                    for (const file of filesResult.files) {
+                        coreExports.info(`📋 Found canvas file: ${file.id} - ${file.name}`);
+                        // Try to update this canvas
+                        try {
+                            await client.canvases.edit({
+                                canvas_id: file.id,
+                                changes: [
+                                    {
+                                        operation: 'replace',
+                                        document_content: {
+                                            type: 'markdown',
+                                            markdown: markdownContent
+                                        }
+                                    }
+                                ]
+                            });
+                            coreExports.info(`✅ Successfully updated canvas via files.list: ${file.id}`);
+                            return file.id;
+                        }
+                        catch (updateError) {
+                            coreExports.debug(`Could not update canvas ${file.id}: ${updateError}`);
+                            continue;
+                        }
+                    }
+                }
+            }
+            catch (filesError) {
+                coreExports.debug(`Could not list canvas files: ${filesError}`);
+            }
+            // If we still can't find it, create a warning and skip canvas update
+            coreExports.error(`❌ Canvas exists but cannot be discovered or updated. Skipping canvas update.`);
+            throw new Error(`Canvas exists but cannot be discovered. Please check the Canvas tab in channel ${channelId} manually.`);
+        }
         // Try to create a new channel canvas
         coreExports.info(`🎨 Creating new channel canvas for ${channelId}`);
         // Debug channel information
@@ -57525,38 +57709,8 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                 throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
             }
             else if (errorCode === 'channel_canvas_already_exists') {
-                // Try to discover the existing canvas one more time with different approach
-                coreExports.warning(`Channel canvas already exists but wasn't discovered initially. Attempting rediscovery...`);
-                // Wait a moment and try discovery again
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                const rediscoveredCanvasId = await discoverChannelCanvas(client, channelId);
-                if (rediscoveredCanvasId) {
-                    coreExports.info(`✅ Rediscovered existing canvas: ${rediscoveredCanvasId}`);
-                    // Now update the existing canvas
-                    try {
-                        await client.canvases.edit({
-                            canvas_id: rediscoveredCanvasId,
-                            changes: [
-                                {
-                                    operation: 'replace',
-                                    document_content: {
-                                        type: 'markdown',
-                                        markdown: markdownContent
-                                    }
-                                }
-                            ]
-                        });
-                        coreExports.info(`✅ Successfully updated rediscovered canvas ${rediscoveredCanvasId}`);
-                        return rediscoveredCanvasId;
-                    }
-                    catch (updateError) {
-                        coreExports.error(`❌ Failed to update rediscovered canvas: ${updateError?.message || updateError}`);
-                        throw updateError;
-                    }
-                }
-                else {
-                    throw new Error(`Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`);
-                }
+                coreExports.error(`❌ Canvas already exists but our discovery failed completely`);
+                throw new Error(`Canvas already exists but could not be discovered. This is a bug in our discovery logic. Please report this issue.`);
             }
             else if (errorCode === 'canvas_creation_failed') {
                 throw new Error(`Canvas creation failed. Possible causes: 1) Canvases disabled in workspace, 2) Free tier limitations, 3) Channel type doesn't support canvases, 4) Workspace admin restrictions. Channel ID: ${channelId}`);
@@ -57594,6 +57748,19 @@ function generateCanvasMarkdown(channelName, releases) {
 
 *Last updated: ${now}*
 
+## 📖 Legend
+
+**Release Types:**
+- 🚀 **Normal Release** - Regular updates and improvements
+- ⚠️🚀 **Breaking Release** - Contains breaking changes that may require code updates
+- ⚙️🚀 **Config Update** - Contains configuration file changes
+- 🧪🚀 **E2E Release** - Contains end-to-end workflow testing links
+
+**Additional Badges:**
+- (Breaking) - Contains breaking changes
+- (Config) - Affects configuration files  
+- (E2E) - Includes E2E workflow links
+
 ## 🚀 Recent Releases
 
 `;
@@ -57619,9 +57786,10 @@ function generateCanvasMarkdown(channelName, releases) {
             }
             releasesByRepo.get(repoName).push(release);
         });
+        // Display releases grouped by repository
         for (const [repoName, repoReleases] of releasesByRepo.entries()) {
             markdown += `\n### ${repoName}\n\n`;
-            repoReleases.forEach((release, index) => {
+            repoReleases.forEach((release) => {
                 const emoji = getChangeTypeEmoji(release.changeType);
                 const releaseLink = release.releaseUrl
                     ? `[${release.version}](${release.releaseUrl})`
@@ -57640,17 +57808,20 @@ function generateCanvasMarkdown(channelName, releases) {
                 markdown += `*No releases yet*\n\n`;
             }
         }
-        // Add simple summary
+        // Add summary
         markdown += `
 
-## Summary
+## 📊 Summary
 
 **Total releases:** ${releases.length}
 **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
 **Config updates:** ${releases.filter((r) => r.hasConfig).length}
 **E2E workflows:** ${releases.filter((r) => r.hasE2E).length}
 
+---
+
 *This canvas is automatically maintained by the release notification system.*
+*Legend shows emoji meanings for quick reference.*
 `;
     }
     return markdown;
