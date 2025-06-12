@@ -1,11 +1,5 @@
 import { WebClient } from '@slack/web-api'
 import * as core from '@actions/core'
-import * as fs from 'fs'
-import * as path from 'path'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
 
 export interface ReleaseEntry {
   version: string
@@ -16,14 +10,6 @@ export interface ReleaseEntry {
   hasE2E: boolean
   releaseUrl?: string
   repositoryName?: string
-}
-
-interface ChannelCanvasMetadata {
-  canvasId: string
-  channelId: string
-  channelName: string
-  lastUpdated: string
-  releaseCount: number
 }
 
 /**
@@ -44,14 +30,21 @@ export async function updateReleasesListCanvas(
       return false
     }
 
-    // Load existing metadata or create new
-    const metadata = await loadCanvasMetadata(channelId)
-    core.info(
-      `📋 Loaded metadata for channel ${channelId}: ${metadata ? `Found existing canvas ${metadata.canvasId}` : 'No existing canvas found'}`
-    )
+    // Discover existing canvas ID using conversations.info
+    const existingCanvasId = await discoverChannelCanvas(client, channelId)
 
-    // Load existing releases or create new list
-    const releases = await loadReleases(channelId)
+    if (existingCanvasId) {
+      core.info(
+        `📋 Found existing canvas ${existingCanvasId} for channel ${channelId}`
+      )
+    } else {
+      core.info(`📋 No existing canvas found for channel ${channelId}`)
+    }
+
+    // Load existing releases from canvas content or create new list
+    const releases = existingCanvasId
+      ? await loadReleasesFromCanvas(client, existingCanvasId)
+      : []
 
     // Add the new release to the beginning of the list
     releases.unshift(newRelease)
@@ -71,25 +64,11 @@ export async function updateReleasesListCanvas(
       channelId,
       channelName,
       releases,
-      metadata?.canvasId
+      existingCanvasId
     )
 
-    // Save updated metadata and releases
-    await saveCanvasMetadata(channelId, {
-      canvasId,
-      channelId,
-      channelName,
-      lastUpdated: new Date().toISOString(),
-      releaseCount: releases.length
-    })
-
-    await saveReleases(channelId, releases)
-
-    // Commit the metadata files to repository to persist between runs
-    await commitMetadataFiles(channelId)
-
     core.info(
-      `✅ Successfully updated releases list canvas (${releases.length} releases)`
+      `✅ Successfully updated releases list canvas ${canvasId} (${releases.length} releases)`
     )
     return true
   } catch (error: any) {
@@ -108,7 +87,7 @@ export async function updateReleasesListCanvas(
       )
     } else if (errorMessage.includes('channel_canvas_already_exists')) {
       core.warning(
-        `⚠️ Canvas update failed: Channel canvas already exists. Please check the channel's Canvas tab.`
+        `⚠️ Canvas update failed: Channel canvas already exists but couldn't be discovered. Please check the channel's Canvas tab.`
       )
     } else {
       core.error(`❌ Failed to update releases list canvas: ${errorMessage}`)
@@ -116,6 +95,127 @@ export async function updateReleasesListCanvas(
 
     return false
   }
+}
+
+/**
+ * Discovers existing channel canvas using conversations.info
+ */
+async function discoverChannelCanvas(
+  client: WebClient,
+  channelId: string
+): Promise<string | undefined> {
+  try {
+    const result = await client.conversations.info({
+      channel: channelId,
+      include_num_members: false
+    })
+
+    if (result.ok && result.channel) {
+      // Check if channel has a canvas property
+      const channel = result.channel as any
+      if (channel.properties?.canvas?.file_id) {
+        return channel.properties.canvas.file_id
+      }
+    }
+  } catch (error: any) {
+    if (error.data?.error === 'missing_scope') {
+      core.info(
+        'Note: Bot needs channels:read permission to discover existing canvases automatically'
+      )
+    } else {
+      core.warning(
+        `Could not discover canvas for channel ${channelId}: ${error}`
+      )
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Loads releases from existing canvas content
+ */
+async function loadReleasesFromCanvas(
+  client: WebClient,
+  canvasId: string
+): Promise<ReleaseEntry[]> {
+  try {
+    // Get canvas content using files.info
+    const result = await client.files.info({ file: canvasId })
+
+    if (result.ok && result.file) {
+      // Try to extract releases from canvas markdown content
+      // This is a simplified parser - in a real implementation you might want more robust parsing
+      const content = (result.file as any).plain_text || ''
+      return parseReleasesFromMarkdown(content)
+    }
+  } catch (error) {
+    core.warning(
+      `Could not load existing releases from canvas ${canvasId}: ${error}`
+    )
+  }
+
+  return []
+}
+
+/**
+ * Simple parser to extract releases from markdown content
+ * This looks for our specific release format in the canvas
+ */
+function parseReleasesFromMarkdown(content: string): ReleaseEntry[] {
+  const releases: ReleaseEntry[] = []
+
+  try {
+    // Look for repository sections like #### 📁 `repo/name`
+    const repoSections = content.split(/#### 📁 `([^`]+)`/)
+
+    for (let i = 1; i < repoSections.length; i += 2) {
+      const repositoryName = repoSections[i]
+      const sectionContent = repoSections[i + 1]
+
+      // Look for release entries like **🚀 v1.2.3** • Jan 15, 2024
+      const releaseMatches = sectionContent.matchAll(
+        /\*\*([^*]+)\*\* • ([^•\n]+)/g
+      )
+
+      for (const match of releaseMatches) {
+        const versionEmoji = match[1]
+        const releaseDate = match[2].trim()
+
+        // Extract version from emoji + version format
+        const versionMatch = versionEmoji.match(
+          /🚀 (.+)$|⚠️🚀 (.+)$|⚙️🚀 (.+)$|🧪🚀 (.+)$/
+        )
+        if (versionMatch) {
+          const version =
+            versionMatch[1] ||
+            versionMatch[2] ||
+            versionMatch[3] ||
+            versionMatch[4]
+
+          // Determine change type from emoji
+          let changeType: 'normal' | 'breaking' | 'config' | 'e2e' = 'normal'
+          if (versionEmoji.includes('⚠️🚀')) changeType = 'breaking'
+          else if (versionEmoji.includes('⚙️🚀')) changeType = 'config'
+          else if (versionEmoji.includes('🧪🚀')) changeType = 'e2e'
+
+          releases.push({
+            version,
+            releaseDate,
+            changeType,
+            hasBreaking: changeType === 'breaking',
+            hasConfig: changeType === 'config',
+            hasE2E: changeType === 'e2e',
+            repositoryName
+          })
+        }
+      }
+    }
+  } catch (error) {
+    core.warning(`Error parsing releases from canvas content: ${error}`)
+  }
+
+  return releases
 }
 
 /**
@@ -154,7 +254,6 @@ async function createOrUpdateCanvas(
       core.error(
         `❌ Failed to update existing canvas ${existingCanvasId}: ${error?.message || error}`
       )
-      // Don't fall back to creating a new canvas - throw the error so it can be handled upstream
       throw error
     }
   } else {
@@ -186,13 +285,8 @@ async function createOrUpdateCanvas(
           `Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`
         )
       } else if (error.data?.error === 'channel_canvas_already_exists') {
-        // Canvas already exists but we don't have its ID in metadata
-        // This can happen if metadata was lost or this is first run after manual canvas creation
-        core.warning(
-          '📋 Channel canvas already exists but canvas ID not found in metadata. The existing canvas will need to be updated manually or deleted to allow automatic canvas management.'
-        )
         throw new Error(
-          'Channel canvas already exists. Please either: 1) Delete the existing canvas in the channel to allow automatic creation, or 2) Update the canvas manually. Future releases will attempt to find and update the existing canvas.'
+          'Channel canvas already exists but could not be discovered. This may be due to missing permissions. Please add channels:read scope or use the canvas ID directly.'
         )
       }
       throw error
@@ -426,136 +520,4 @@ async function getChannelInfo(
     }
   }
   return { name: channelId } // Fallback to channel ID
-}
-
-/**
- * Loads canvas metadata from file
- */
-async function loadCanvasMetadata(
-  channelId: string
-): Promise<ChannelCanvasMetadata | null> {
-  const metadataPath = getMetadataPath(channelId)
-
-  if (fs.existsSync(metadataPath)) {
-    try {
-      const content = fs.readFileSync(metadataPath, 'utf8')
-      return JSON.parse(content)
-    } catch (error) {
-      core.warning(`Failed to load canvas metadata: ${error}`)
-    }
-  }
-
-  return null
-}
-
-/**
- * Saves canvas metadata to file
- */
-async function saveCanvasMetadata(
-  channelId: string,
-  metadata: ChannelCanvasMetadata
-): Promise<void> {
-  const metadataPath = getMetadataPath(channelId)
-  const metadataDir = path.dirname(metadataPath)
-
-  // Ensure directory exists
-  if (!fs.existsSync(metadataDir)) {
-    fs.mkdirSync(metadataDir, { recursive: true })
-  }
-
-  fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2))
-}
-
-/**
- * Loads releases from file
- */
-async function loadReleases(channelId: string): Promise<ReleaseEntry[]> {
-  const releasesPath = getReleasesPath(channelId)
-
-  if (fs.existsSync(releasesPath)) {
-    try {
-      const content = fs.readFileSync(releasesPath, 'utf8')
-      return JSON.parse(content)
-    } catch (error) {
-      core.warning(`Failed to load releases: ${error}`)
-    }
-  }
-
-  return []
-}
-
-/**
- * Saves releases to file
- */
-async function saveReleases(
-  channelId: string,
-  releases: ReleaseEntry[]
-): Promise<void> {
-  const releasesPath = getReleasesPath(channelId)
-  const releasesDir = path.dirname(releasesPath)
-
-  // Ensure directory exists
-  if (!fs.existsSync(releasesDir)) {
-    fs.mkdirSync(releasesDir, { recursive: true })
-  }
-
-  fs.writeFileSync(releasesPath, JSON.stringify(releases, null, 2))
-}
-
-/**
- * Gets the file path for canvas metadata
- */
-function getMetadataPath(channelId: string): string {
-  return path.join('.github', 'releases-canvases', `${channelId}-metadata.json`)
-}
-
-/**
- * Gets the file path for releases data
- */
-function getReleasesPath(channelId: string): string {
-  return path.join('.github', 'releases-canvases', `${channelId}-releases.json`)
-}
-
-/**
- * Commits metadata files to repository to persist between action runs
- */
-async function commitMetadataFiles(channelId: string): Promise<void> {
-  try {
-    const metadataPath = getMetadataPath(channelId)
-    const releasesPath = getReleasesPath(channelId)
-
-    // Configure git user (required for commits)
-    await execAsync('git config --global user.email "action@github.com"')
-    await execAsync('git config --global user.name "GitHub Action"')
-
-    // Add the metadata files
-    await execAsync(`git add "${metadataPath}" "${releasesPath}"`)
-
-    // Check if there are changes to commit
-    try {
-      await execAsync('git diff --staged --quiet')
-      // No changes to commit
-      core.info('📝 No changes to metadata files, skipping commit')
-      return
-    } catch {
-      // There are changes to commit
-    }
-
-    // Commit the changes
-    await execAsync(
-      `git commit -m "Update releases canvas metadata for channel ${channelId}"`
-    )
-
-    // Push the changes
-    await execAsync('git push')
-
-    core.info('📝 Successfully committed canvas metadata to repository')
-  } catch (error: any) {
-    core.warning(
-      `⚠️ Failed to commit metadata files: ${error?.message || error}`
-    )
-    core.warning(
-      'This may cause canvas duplication on future runs. Consider manually committing the .github/releases-canvases/ directory.'
-    )
-  }
 }

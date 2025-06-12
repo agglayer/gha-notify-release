@@ -1,38 +1,38 @@
-name: 'Slack Release Notifier'
+name: 'GitHub Release Slack Notification'
 description:
-  'Send release notifications to Slack with intelligent breaking change
-  detection and persistent Canvas lists'
-author: 'sdan'
+  'Automatically notify Slack channels of new GitHub releases with breaking
+  change detection'
+author: 'agglayer'
 
 # Define your inputs here.
 inputs:
   slack-bot-token:
-    description: 'Slack bot token (starts with xoxb-)'
+    description:
+      'Slack bot token (xoxb-...) with chat:write and canvases:write permissions'
     required: true
   slack-channel:
-    description: 'Slack channel to post to (default: C090TACJ9KN)'
-    required: false
-    default: 'C090TACJ9KN' # #feed_agglayer-notifier
-  custom-message:
-    description: 'Custom message to include in the notification'
-    required: false
-  maintain-releases-list:
     description:
-      'Whether to maintain a persistent Canvas with all releases in the channel
-      (requires canvases:write permission)'
+      'Slack channel name (e.g. "releases") or ID (e.g. "C1234567890")'
+    required: true
+  custom-message:
+    description: 'Optional custom message to include in notification'
+    required: false
+    default: ''
+  maintain-releases-list:
+    description: 'Whether to maintain a releases list canvas in the channel'
     required: false
     default: 'true'
 
 outputs:
-  notification-sent:
-    description: 'Whether the notification was sent successfully'
-  timestamp:
-    description: 'Timestamp when the notification was sent'
-  channel:
-    description: 'Channel where the notification was sent'
-  releases-list-updated:
-    description: 'Whether the releases Canvas was updated (if enabled)'
+  message-sent:
+    description: 'Whether the Slack message was sent successfully'
+  canvas-updated:
+    description: 'Whether the releases canvas was updated successfully'
 
 runs:
   using: 'node20'
   main: 'dist/index.js'
+
+branding:
+  icon: 'bell'
+  color: 'blue'

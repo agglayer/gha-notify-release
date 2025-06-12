@@ -58,7 +58,7 @@ contains all releases:
 - **Rich formatting**: Beautiful structured markdown with statistics and legends
 - **Easy access**: Canvas appears as a tab in the channel header
 
-### �� Visual Indicators
+### 🎨 Visual Indicators
 
 - **Normal releases**: 🚀 Green sidebar, "New Release"
 - **E2E workflow releases**: 🧪🚀 Cyan sidebar, "E2E WORKFLOW RELEASE"
@@ -112,32 +112,23 @@ For each channel where you want notifications:
 4. Value: Your bot token from step 1 (starts with `xoxb-`)
 5. Click **"Add secret"**
 
-### 4. Configure Repository Permissions (for Canvas Feature)
+### 4. Required Slack Permissions
 
-If you're using the persistent releases list feature, the action needs write
-access to commit canvas metadata:
+The action requires specific Slack permissions to function properly:
 
-1. In your workflow file, add the `contents: write` permission:
-   ```yaml
-   jobs:
-     notify-slack:
-       runs-on: ubuntu-latest
-       permissions:
-         contents: write # Required for canvas metadata persistence
-       steps:
-         # ... your steps
-   ```
-2. Or grant full permissions with:
-   ```yaml
-   permissions: write-all
-   ```
+**Required Scopes:**
+- `chat:write` - Send messages to channels
+- `canvases:write` - Create and update canvases (for releases list)
 
-**Why this is needed:** The action stores canvas metadata in
-`.github/releases-canvases/` to prevent duplicate canvases on subsequent runs.
-Without write permissions, each release will attempt to create a new canvas
-instead of updating the existing one.
+**Optional Scopes (for better functionality):**
+- `channels:read` - Resolve channel names and discover existing canvases
+- `chat:write.public` - Post to public channels without being invited
+
+**Note:** The action automatically discovers existing canvases using the Slack API, eliminating the need for local storage or git commits.
 
 ## Usage
+
+### Basic Setup
 
 ```yaml
 name: Release Notification
@@ -149,8 +140,6 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required for canvas metadata persistence
     steps:
       - name: Notify Slack
         uses: agglayer/gha-notify-release@v1
@@ -160,14 +149,24 @@ jobs:
           custom-message: '🎉 Our latest release is now available!'
 ```
 
+### Multi-Repository Canvas Sharing
+
+**Automatic Canvas Discovery:** The action automatically discovers existing canvases in the target channel, so multiple repositories can share the same canvas without any additional configuration.
+
+**Benefits:**
+- ✅ **Multiple repositories** automatically share the same canvas
+- ✅ **No duplicate canvases** - existing canvases are discovered and updated
+- ✅ **No git commits** or metadata files needed
+- ✅ **Repository grouping** in canvas displays
+
 ## Inputs
 
-| Input                    | Description                                                    | Required | Default                   |
-| ------------------------ | -------------------------------------------------------------- | -------- | ------------------------- |
-| `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -                         |
-| `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | No       | `#feed_agglayer-notifier` |
-| `custom-message`         | Custom message to include with the release notification        | No       | -                         |
-| `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`                    |
+| Input                    | Description                                                    | Required | Default               |
+| ------------------------ | -------------------------------------------------------------- | -------- | --------------------- |
+| `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -                     |
+| `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | Yes      | -                     |
+| `custom-message`         | Custom message to include with the release notification        | No       | ''                    |
+| `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`                |
 
 ## Outputs
 
@@ -441,21 +440,11 @@ breakdowns.
   plans)
 - If Canvas already exists, the action will attempt to update it automatically
 
-**Canvas Duplication Issues:**
+**Canvas Discovery:**
 
-- **Problem**: Each release creates a new canvas instead of updating existing
-  one
-- **Cause**: Missing repository write permissions for metadata persistence
-- **Solution**: Add `contents: write` permission to your workflow job:
-  ```yaml
-  jobs:
-    notify-slack:
-      permissions:
-        contents: write
-  ```
-- **Explanation**: The action stores canvas metadata in
-  `.github/releases-canvases/` directory and commits these files to persist
-  canvas IDs between workflow runs
+- **Automatic detection**: The action uses `conversations.info` API to automatically discover existing canvases
+- **No storage needed**: Canvas IDs are discovered on each run, eliminating the need for local storage
+- **Multi-repository support**: Multiple repositories can share the same canvas without additional configuration
 
 ## Contributing
 
@@ -479,8 +468,6 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required for canvas metadata persistence
     steps:
       - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
@@ -505,8 +492,6 @@ on:
 jobs:
   notify-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required for canvas metadata persistence
     strategy:
       matrix:
         notification:
@@ -537,8 +522,6 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required for canvas metadata persistence
     steps:
       - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
