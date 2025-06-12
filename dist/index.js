@@ -57503,6 +57503,49 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
             // Log markdown content size for debugging
             const contentLength = markdownContent.length;
             coreExports.info(`📊 Canvas content size: ${contentLength} characters`);
+            // Try with exact same content as debug script first
+            coreExports.info(`🧪 Testing with debug script content first...`);
+            try {
+                const debugContent = '# Test Canvas\n\nThis is a test channel canvas created by debug script.';
+                const debugResult = await client.conversations.canvases.create({
+                    channel_id: channelId,
+                    document_content: {
+                        type: 'markdown',
+                        markdown: debugContent
+                    }
+                });
+                if (debugResult.ok && debugResult.canvas_id) {
+                    coreExports.info(`✅ Debug content worked! Canvas ID: ${debugResult.canvas_id}`);
+                    // Now try to update with actual content
+                    try {
+                        await client.canvases.edit({
+                            canvas_id: debugResult.canvas_id,
+                            changes: [
+                                {
+                                    operation: 'replace',
+                                    document_content: {
+                                        type: 'markdown',
+                                        markdown: markdownContent
+                                    }
+                                }
+                            ]
+                        });
+                        coreExports.info(`✅ Successfully updated with full content`);
+                        return debugResult.canvas_id;
+                    }
+                    catch (updateError) {
+                        coreExports.warning(`⚠️ Update failed, keeping debug canvas: ${updateError.data?.error || updateError.message}`);
+                        return debugResult.canvas_id;
+                    }
+                }
+                else {
+                    coreExports.error(`❌ Debug content failed: ${debugResult.error}`);
+                }
+            }
+            catch (debugError) {
+                coreExports.error(`❌ Debug content creation failed: ${debugError.data?.error || debugError.message}`);
+                coreExports.error(`Debug error details: ${JSON.stringify(debugError.data, null, 2)}`);
+            }
             // If content is very large, try with simplified content first
             if (contentLength > 10000) {
                 coreExports.warning(`⚠️ Content is large (${contentLength} chars), trying simplified version first...`);
@@ -57577,7 +57620,9 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
             }
             // Log the full error for debugging
             coreExports.error(`Full error details: ${JSON.stringify(error, null, 2)}`);
-            throw new Error(`Canvas creation failed with error: ${errorCode}. Check logs for full details.`);
+            coreExports.error(`Error data: ${JSON.stringify(error.data, null, 2)}`);
+            coreExports.error(`Error message: ${error.message}`);
+            throw new Error(`Canvas creation failed with error: ${errorCode}. Full details logged above.`);
         }
     }
 }

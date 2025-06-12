@@ -322,6 +322,58 @@ async function createOrUpdateCanvas(
       const contentLength = markdownContent.length
       core.info(`📊 Canvas content size: ${contentLength} characters`)
 
+      // Try with exact same content as debug script first
+      core.info(`🧪 Testing with debug script content first...`)
+      try {
+        const debugContent =
+          '# Test Canvas\n\nThis is a test channel canvas created by debug script.'
+        const debugResult = await client.conversations.canvases.create({
+          channel_id: channelId,
+          document_content: {
+            type: 'markdown',
+            markdown: debugContent
+          }
+        })
+
+        if (debugResult.ok && debugResult.canvas_id) {
+          core.info(
+            `✅ Debug content worked! Canvas ID: ${debugResult.canvas_id}`
+          )
+
+          // Now try to update with actual content
+          try {
+            await client.canvases.edit({
+              canvas_id: debugResult.canvas_id,
+              changes: [
+                {
+                  operation: 'replace',
+                  document_content: {
+                    type: 'markdown',
+                    markdown: markdownContent
+                  }
+                }
+              ]
+            })
+            core.info(`✅ Successfully updated with full content`)
+            return debugResult.canvas_id
+          } catch (updateError: any) {
+            core.warning(
+              `⚠️ Update failed, keeping debug canvas: ${updateError.data?.error || updateError.message}`
+            )
+            return debugResult.canvas_id
+          }
+        } else {
+          core.error(`❌ Debug content failed: ${debugResult.error}`)
+        }
+      } catch (debugError: any) {
+        core.error(
+          `❌ Debug content creation failed: ${debugError.data?.error || debugError.message}`
+        )
+        core.error(
+          `Debug error details: ${JSON.stringify(debugError.data, null, 2)}`
+        )
+      }
+
       // If content is very large, try with simplified content first
       if (contentLength > 10000) {
         core.warning(
@@ -421,8 +473,11 @@ async function createOrUpdateCanvas(
 
       // Log the full error for debugging
       core.error(`Full error details: ${JSON.stringify(error, null, 2)}`)
+      core.error(`Error data: ${JSON.stringify(error.data, null, 2)}`)
+      core.error(`Error message: ${error.message}`)
+
       throw new Error(
-        `Canvas creation failed with error: ${errorCode}. Check logs for full details.`
+        `Canvas creation failed with error: ${errorCode}. Full details logged above.`
       )
     }
   }
