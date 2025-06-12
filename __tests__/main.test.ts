@@ -99,7 +99,7 @@ describe('main.ts', () => {
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: '#releases',
-        text: '*New Release*: owner/repo v1.2.3',
+        text: '*New Release*: `owner/repo` v1.2.3',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#36a64f', // Green for normal release
@@ -109,7 +109,7 @@ describe('main.ts', () => {
                 text: expect.objectContaining({
                   type: 'mrkdwn',
                   text: expect.stringContaining(
-                    '🚀 *New Release*: owner/repo v1.2.3'
+                    '🚀 *New Release*: `owner/repo` v1.2.3'
                   )
                 })
               })
@@ -162,7 +162,7 @@ describe('main.ts', () => {
     // Verify that breaking changes are detected and highlighted
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: '*BREAKING RELEASE*: v2.0.0',
+        text: '*BREAKING RELEASE*: `owner/repo` v2.0.0',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#ff9900', // Orange for breaking release
@@ -170,7 +170,7 @@ describe('main.ts', () => {
               expect.objectContaining({
                 text: expect.objectContaining({
                   text: expect.stringContaining(
-                    '⚠️🚀 *BREAKING RELEASE*: owner/repo v2.0.0'
+                    '⚠️🚀 *BREAKING RELEASE*: `owner/repo` v2.0.0'
                   )
                 })
               })
@@ -213,7 +213,7 @@ describe('main.ts', () => {
     // Verify breaking changes are detected from conventional commits
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: '*BREAKING RELEASE*: v1.5.0',
+        text: '*BREAKING RELEASE*: `owner/repo` v1.5.0',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#ff9900' // Orange for breaking release
@@ -356,7 +356,7 @@ describe('main.ts', () => {
     // Verify that config changes are detected and highlighted
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: '*CONFIG UPDATE*: v1.3.0',
+        text: '*CONFIG UPDATE*: `owner/repo` v1.3.0',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#ffcc00', // Yellow for config changes
@@ -364,7 +364,7 @@ describe('main.ts', () => {
               expect.objectContaining({
                 text: expect.objectContaining({
                   text: expect.stringContaining(
-                    '⚙️🚀 *CONFIG UPDATE*: owner/repo v1.3.0'
+                    '⚙️🚀 *CONFIG UPDATE*: `owner/repo` v1.3.0'
                   )
                 })
               })
@@ -415,7 +415,7 @@ describe('main.ts', () => {
     // Verify that breaking changes take priority (orange color, breaking release type)
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: '*BREAKING RELEASE*: v2.0.0',
+        text: '*BREAKING RELEASE*: `owner/repo` v2.0.0',
         attachments: expect.arrayContaining([
           expect.objectContaining({
             color: '#ff9900' // Orange for breaking changes (not yellow for config)

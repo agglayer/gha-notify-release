@@ -59,7 +59,7 @@ export async function sendReleaseNotification(
   // Build the main message with repository name first
   let message = `${releaseEmoji} ${releaseType}: `
   if (notification.repositoryName) {
-    message += `${notification.repositoryName} ${notification.version}`
+    message += `\`${notification.repositoryName}\` ${notification.version}`
   } else {
     message += notification.version
   }
@@ -105,7 +105,7 @@ export async function sendReleaseNotification(
   // Create the text with repository name first for fallback
   let messageText = `${releaseType}: `
   if (notification.repositoryName) {
-    messageText += `${notification.repositoryName} ${notification.version}`
+    messageText += `\`${notification.repositoryName}\` ${notification.version}`
   } else {
     messageText += notification.version
   }

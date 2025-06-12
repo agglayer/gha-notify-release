@@ -57195,7 +57195,7 @@ async function sendReleaseNotification(token, channel, notification) {
     // Build the main message with repository name first
     let message = `${releaseEmoji} ${releaseType}: `;
     if (notification.repositoryName) {
-        message += `${notification.repositoryName} ${notification.version}`;
+        message += `\`${notification.repositoryName}\` ${notification.version}`;
     }
     else {
         message += notification.version;
@@ -57236,7 +57236,7 @@ async function sendReleaseNotification(token, channel, notification) {
     // Create the text with repository name first for fallback
     let messageText = `${releaseType}: `;
     if (notification.repositoryName) {
-        messageText += `${notification.repositoryName} ${notification.version}`;
+        messageText += `\`${notification.repositoryName}\` ${notification.version}`;
     }
     else {
         messageText += notification.version;
@@ -57297,6 +57297,7 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         }
         // Load existing metadata or create new
         const metadata = await loadCanvasMetadata(channelId);
+        coreExports.info(`📋 Loaded metadata for channel ${channelId}: ${metadata ? `Found existing canvas ${metadata.canvasId}` : 'No existing canvas found'}`);
         // Load existing releases or create new list
         const releases = await loadReleases(channelId);
         // Add the new release to the beginning of the list
@@ -57348,19 +57349,27 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
     if (existingCanvasId) {
         // Update existing canvas
         coreExports.info(`📝 Updating existing canvas ${existingCanvasId}`);
-        await client.canvases.edit({
-            canvas_id: existingCanvasId,
-            changes: [
-                {
-                    operation: 'replace',
-                    document_content: {
-                        type: 'markdown',
-                        markdown: markdownContent
+        try {
+            await client.canvases.edit({
+                canvas_id: existingCanvasId,
+                changes: [
+                    {
+                        operation: 'replace',
+                        document_content: {
+                            type: 'markdown',
+                            markdown: markdownContent
+                        }
                     }
-                }
-            ]
-        });
-        return existingCanvasId;
+                ]
+            });
+            coreExports.info(`✅ Successfully updated existing canvas ${existingCanvasId}`);
+            return existingCanvasId;
+        }
+        catch (error) {
+            coreExports.error(`❌ Failed to update existing canvas ${existingCanvasId}: ${error?.message || error}`);
+            // Don't fall back to creating a new canvas - throw the error so it can be handled upstream
+            throw error;
+        }
     }
     else {
         // Try to create a new channel canvas
@@ -57387,9 +57396,10 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                 throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
             }
             else if (error.data?.error === 'channel_canvas_already_exists') {
-                // Canvas already exists, try to find it and update
-                coreExports.info('📋 Channel canvas already exists, attempting to find and update it');
-                throw new Error('Channel canvas already exists - please check channel canvas manually');
+                // Canvas already exists but we don't have its ID in metadata
+                // This can happen if metadata was lost or this is first run after manual canvas creation
+                coreExports.warning('📋 Channel canvas already exists but canvas ID not found in metadata. The existing canvas will need to be updated manually or deleted to allow automatic canvas management.');
+                throw new Error('Channel canvas already exists. Please either: 1) Delete the existing canvas in the channel to allow automatic creation, or 2) Update the canvas manually. Future releases will attempt to find and update the existing canvas.');
             }
             throw error;
         }
@@ -57408,7 +57418,7 @@ function generateCanvasMarkdown(channelName, releases) {
         minute: '2-digit',
         timeZoneName: 'short'
     });
-    let markdown = `# 📦 ${channelName} Releases
+    let markdown = `# 📦 Releases
 
 *Last updated: ${now}*
 

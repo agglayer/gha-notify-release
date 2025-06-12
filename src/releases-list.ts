@@ -41,6 +41,9 @@ export async function updateReleasesListCanvas(
 
     // Load existing metadata or create new
     const metadata = await loadCanvasMetadata(channelId)
+    core.info(
+      `📋 Loaded metadata for channel ${channelId}: ${metadata ? `Found existing canvas ${metadata.canvasId}` : 'No existing canvas found'}`
+    )
 
     // Load existing releases or create new list
     const releases = await loadReleases(channelId)
@@ -123,20 +126,29 @@ async function createOrUpdateCanvas(
     // Update existing canvas
     core.info(`📝 Updating existing canvas ${existingCanvasId}`)
 
-    await client.canvases.edit({
-      canvas_id: existingCanvasId,
-      changes: [
-        {
-          operation: 'replace',
-          document_content: {
-            type: 'markdown',
-            markdown: markdownContent
+    try {
+      await client.canvases.edit({
+        canvas_id: existingCanvasId,
+        changes: [
+          {
+            operation: 'replace',
+            document_content: {
+              type: 'markdown',
+              markdown: markdownContent
+            }
           }
-        }
-      ]
-    })
+        ]
+      })
 
-    return existingCanvasId
+      core.info(`✅ Successfully updated existing canvas ${existingCanvasId}`)
+      return existingCanvasId
+    } catch (error: any) {
+      core.error(
+        `❌ Failed to update existing canvas ${existingCanvasId}: ${error?.message || error}`
+      )
+      // Don't fall back to creating a new canvas - throw the error so it can be handled upstream
+      throw error
+    }
   } else {
     // Try to create a new channel canvas
     core.info(`🎨 Creating new channel canvas for ${channelId}`)
@@ -166,12 +178,13 @@ async function createOrUpdateCanvas(
           `Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`
         )
       } else if (error.data?.error === 'channel_canvas_already_exists') {
-        // Canvas already exists, try to find it and update
-        core.info(
-          '📋 Channel canvas already exists, attempting to find and update it'
+        // Canvas already exists but we don't have its ID in metadata
+        // This can happen if metadata was lost or this is first run after manual canvas creation
+        core.warning(
+          '📋 Channel canvas already exists but canvas ID not found in metadata. The existing canvas will need to be updated manually or deleted to allow automatic canvas management.'
         )
         throw new Error(
-          'Channel canvas already exists - please check channel canvas manually'
+          'Channel canvas already exists. Please either: 1) Delete the existing canvas in the channel to allow automatic creation, or 2) Update the canvas manually. Future releases will attempt to find and update the existing canvas.'
         )
       }
       throw error
@@ -196,7 +209,7 @@ function generateCanvasMarkdown(
     timeZoneName: 'short'
   })
 
-  let markdown = `# 📦 ${channelName} Releases
+  let markdown = `# 📦 Releases
 
 *Last updated: ${now}*
 
