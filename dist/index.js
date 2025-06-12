@@ -57192,10 +57192,10 @@ async function sendReleaseNotification(token, channel, notification) {
         releaseEmoji = '🧪🚀';
         releaseType = '*E2E WORKFLOW RELEASE*';
     }
-    // Build the main message
+    // Build the main message with repository name inline
     let message = `${releaseEmoji} ${releaseType}: ${notification.version}`;
     if (notification.repositoryName) {
-        message += `\n📦 *Repository:* ${notification.repositoryName}`;
+        message += ` (${notification.repositoryName})`;
     }
     if (notification.customMessage) {
         message += `\n\n${notification.customMessage}`;
@@ -57606,17 +57606,19 @@ function getReleasesPath(channelId) {
 async function run() {
     try {
         // Get inputs from action configuration
-        const releaseVersion = coreExports.getInput('release-version');
         let slackBotToken = coreExports.getInput('slack-bot-token');
-        const slackChannel = coreExports.getInput('slack-channel') || '#feed_agglayer-notifier';
-        const releaseUrl = coreExports.getInput('release-url');
+        const slackChannel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
         const customMessage = coreExports.getInput('custom-message');
         const maintainReleasesList = coreExports.getInput('maintain-releases-list') === 'true';
-        // Get release notes from GitHub context
+        // Get data from GitHub release event
+        const releaseVersion = githubExports.context.payload.release
+            ?.tag_name;
+        const releaseUrl = githubExports.context.payload.release
+            ?.html_url;
         const releaseNotes = githubExports.context.payload.release?.body || '';
-        // Validate required inputs
+        // Validate required data
         if (!releaseVersion) {
-            throw new Error('release-version is required');
+            throw new Error('Release version not found in GitHub release event. This action must be triggered by a release event.');
         }
         // Handle bot token with fallback to environment variable
         if (!slackBotToken) {

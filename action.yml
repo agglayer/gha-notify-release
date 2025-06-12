@@ -6,19 +6,13 @@ author: 'sdan'
 
 # Define your inputs here.
 inputs:
-  release-version:
-    description: 'The version of the release (e.g., v1.2.3)'
-    required: true
   slack-bot-token:
     description: 'Slack bot token (starts with xoxb-)'
     required: true
   slack-channel:
-    description: 'Slack channel to post to (default: #feed_agglayer-notifier)'
+    description: 'Slack channel to post to (default: C090TACJ9KN)'
     required: false
-    default: '#feed_agglayer-notifier'
-  release-url:
-    description: 'URL to the release page'
-    required: false
+    default: 'C090TACJ9KN' # #feed_agglayer-notifier
   custom-message:
     description: 'Custom message to include in the notification'
     required: false

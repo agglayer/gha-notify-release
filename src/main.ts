@@ -15,22 +15,25 @@ import { WebClient } from '@slack/web-api'
 export async function run(): Promise<void> {
   try {
     // Get inputs from action configuration
-    const releaseVersion: string = core.getInput('release-version')
     let slackBotToken: string = core.getInput('slack-bot-token')
-    const slackChannel: string =
-      core.getInput('slack-channel') || '#feed_agglayer-notifier'
-    const releaseUrl: string = core.getInput('release-url')
+    const slackChannel: string = core.getInput('slack-channel') || 'C090TACJ9KN'
     const customMessage: string = core.getInput('custom-message')
     const maintainReleasesList: boolean =
       core.getInput('maintain-releases-list') === 'true'
 
-    // Get release notes from GitHub context
+    // Get data from GitHub release event
+    const releaseVersion: string = github.context.payload.release
+      ?.tag_name as string
+    const releaseUrl: string = github.context.payload.release
+      ?.html_url as string
     const releaseNotes: string =
       (github.context.payload.release?.body as string) || ''
 
-    // Validate required inputs
+    // Validate required data
     if (!releaseVersion) {
-      throw new Error('release-version is required')
+      throw new Error(
+        'Release version not found in GitHub release event. This action must be triggered by a release event.'
+      )
     }
 
     // Handle bot token with fallback to environment variable

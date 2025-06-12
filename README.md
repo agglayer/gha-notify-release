@@ -75,8 +75,6 @@ Add this to your workflow to send release notifications:
   uses: agglayer/gha-notify-release@v1
   with:
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-    release-version: ${{ github.event.release.tag_name }}
-    release-url: ${{ github.event.release.html_url }}
     custom-message: '🎉 New release is now available!'
 ```
 
@@ -129,9 +127,7 @@ jobs:
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          release-version: ${{ github.event.release.tag_name }}
           slack-channel: 'releases' # or '#releases' or channel ID
-          release-url: ${{ github.event.release.html_url }}
           custom-message: '🎉 Our latest release is now available!'
 ```
 
@@ -139,10 +135,8 @@ jobs:
 
 | Input                    | Description                                                    | Required | Default                   |
 | ------------------------ | -------------------------------------------------------------- | -------- | ------------------------- |
-| `release-version`        | The version of the release                                     | Yes      | `X.Y.Z`                   |
 | `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -                         |
 | `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | No       | `#feed_agglayer-notifier` |
-| `release-url`            | URL to the release page                                        | No       | -                         |
 | `custom-message`         | Custom message to include with the release notification        | No       | -                         |
 | `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`                    |
 
@@ -168,8 +162,7 @@ You can specify the Slack channel in multiple ways:
 ### Normal Release
 
 ```
-🚀 New Release: v1.2.3
-📦 Repository: owner/repo
+🚀 New Release: v1.2.3 (owner/repo)
 
 🎉 Bug fixes and improvements are here!
 
@@ -181,8 +174,7 @@ Released at 2024-01-15T10:30:00.000Z
 ### Config Update Release
 
 ```
-⚙️🚀 CONFIG UPDATE: v1.3.0
-📦 Repository: owner/repo
+⚙️🚀 CONFIG UPDATE: v1.3.0 (owner/repo)
 
 🎉 Updated configuration for new features!
 
@@ -203,8 +195,7 @@ Configuration Updates:
 ### E2E Workflow Release
 
 ```
-🧪🚀 E2E WORKFLOW RELEASE: v1.4.0
-📦 Repository: owner/repo
+🧪🚀 E2E WORKFLOW RELEASE: v1.4.0 (owner/repo)
 
 🎉 Release with e2e workflow validation!
 
@@ -222,8 +213,7 @@ Configuration Updates:
 ### Breaking Release (with Config)
 
 ```
-⚠️🚀 BREAKING RELEASE: v2.0.0
-📦 Repository: owner/repo
+⚠️🚀 BREAKING RELEASE: v2.0.0 (owner/repo)
 
 🎉 Major update with new features!
 
@@ -340,7 +330,6 @@ The action detects various patterns of breaking changes:
       channel: ['releases', 'general', 'engineering']
   uses: agglayer/gha-notify-release@v1
     with:
-    release-version: ${{ github.event.release.tag_name }}
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
     slack-channel: ${{ matrix.channel }}
 ```
@@ -353,7 +342,6 @@ The action detects various patterns of breaking changes:
   uses: agglayer/gha-notify-release@v1
     with:
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-    release-version: ${{ github.event.release.tag_name }}
     slack-channel: 'releases'
 ```
 
@@ -432,12 +420,10 @@ jobs:
   notify-slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Notify Slack of Release
+            - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          release-version: ${{ github.event.release.tag_name }}
-          release-url: ${{ github.event.release.html_url }}
           custom-message: |
             🎉 New ${{ github.repository }} release is available!
 
@@ -471,9 +457,7 @@ jobs:
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          release-version: ${{ github.event.release.tag_name }}
           slack-channel: ${{ matrix.notification.channel }}
-          release-url: ${{ github.event.release.html_url }}
           custom-message: ${{ matrix.notification.message }}
 ```
 
@@ -490,12 +474,10 @@ jobs:
   notify-slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Notify Slack of Release
+            - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          release-version: ${{ github.event.release.tag_name }}
-          release-url: ${{ github.event.release.html_url }}
           custom-message: |
             ${{ startsWith(github.event.release.tag_name, 'v') && contains(github.event.release.body, 'BREAKING') && '🚨 **CRITICAL UPDATE** 🚨' || '✨ Regular update available' }}
 
