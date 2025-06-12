@@ -8,6 +8,7 @@ import {
   analyzeConfigChanges,
   formatConfigChangesForSlack
 } from './config-analysis.js'
+import { analyzeE2ETests, formatE2ETestsForSlack } from './e2e-analysis.js'
 
 export interface ReleaseNotification {
   version: string
@@ -34,11 +35,12 @@ export async function sendReleaseNotification(
   const formattedChannel =
     channel.startsWith('C') || channel.startsWith('#') ? channel : `#${channel}`
 
-  // Analyze release notes for breaking changes and config changes
+  // Analyze release notes for breaking changes, config changes, and e2e tests
   const breakingAnalysis = analyzeBreakingChanges(notification.releaseNotes)
   const configAnalysis = analyzeConfigChanges(notification.releaseNotes)
+  const e2eAnalysis = analyzeE2ETests(notification.releaseNotes)
 
-  // Choose appropriate emoji and type based on changes
+  // Choose appropriate emoji and type based on changes (priority: breaking > config > e2e > normal)
   let releaseEmoji = '🚀'
   let releaseType = '*New Release*'
 
@@ -48,6 +50,9 @@ export async function sendReleaseNotification(
   } else if (configAnalysis.hasConfigChanges) {
     releaseEmoji = '⚙️🚀'
     releaseType = '*CONFIG UPDATE*'
+  } else if (e2eAnalysis.hasE2ETests) {
+    releaseEmoji = '🧪🚀'
+    releaseType = '*E2E WORKFLOW RELEASE*'
   }
 
   // Build the main message
@@ -69,6 +74,12 @@ export async function sendReleaseNotification(
     message += configChangesText
   }
 
+  // Add e2e test section if found
+  const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis)
+  if (e2eTestsText) {
+    message += e2eTestsText
+  }
+
   if (notification.releaseUrl) {
     message += `\n\n🔗 <${notification.releaseUrl}|View Release>`
   }
@@ -81,6 +92,8 @@ export async function sendReleaseNotification(
     messageColor = '#ff9900' // Orange for breaking changes
   } else if (configAnalysis.hasConfigChanges) {
     messageColor = '#ffcc00' // Yellow for config changes
+  } else if (e2eAnalysis.hasE2ETests) {
+    messageColor = '#00bcd4' // Cyan for e2e tested releases
   }
 
   try {
@@ -110,6 +123,9 @@ export async function sendReleaseNotification(
       }
       if (configAnalysis.hasConfigChanges) {
         core.info(`Configuration changes highlighted in notification`)
+      }
+      if (e2eAnalysis.hasE2ETests) {
+        core.info(`E2E workflow links highlighted in notification`)
       }
       core.debug(`Slack response: ${JSON.stringify(result)}`)
     } else {

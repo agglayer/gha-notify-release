@@ -37,6 +37,12 @@ The action automatically analyzes release notes and detects different types of c
 3. **Before/After sections**: Identifies configuration comparisons
 4. **Config mentions**: Catches bullet points mentioning config updates
 
+### 🧪 E2E Workflow Detection
+
+1. **GitHub Actions workflows**: Detects links to e2e workflow runs and files
+2. **Workflow status**: Determines if workflows passed or failed from context
+3. **E2E workflow files**: Identifies e2e-related workflow file links
+
 ### 📋 Persistent Releases List
 
 When enabled, the action maintains a single Canvas document per channel that contains all releases:
@@ -50,6 +56,7 @@ When enabled, the action maintains a single Canvas document per channel that con
 ### �� Visual Indicators
 
 - **Normal releases**: 🚀 Green sidebar, "New Release"
+- **E2E workflow releases**: 🧪🚀 Cyan sidebar, "E2E WORKFLOW RELEASE"
 - **Config updates**: ⚙️🚀 Yellow sidebar, "CONFIG UPDATE" 
 - **Breaking releases**: ⚠️🚀 Orange sidebar, "BREAKING RELEASE" (highest priority)
 
@@ -212,6 +219,23 @@ Configuration Updates:
 🔗 View Release
 ```
 
+### E2E Workflow Release
+
+```
+🧪🚀 E2E WORKFLOW RELEASE: v1.4.0
+🎉 Release with e2e workflow validation!
+
+🧪 E2E WORKFLOWS DETECTED
+
+🔄 E2E Tests Workflow (owner/repo)
+✅ Status: Passed
+
+📋 Integration Tests (owner/repo)
+❌ Status: Failed
+
+🔗 View Release
+```
+
 ### Breaking Release (with Config)
 
 ```
@@ -327,7 +351,7 @@ The action detects various patterns of breaking changes:
     matrix:
       channel: ['releases', 'general', 'engineering']
   uses: agglayer/gha-notify-release@v1
-  with:
+    with:
     release-version: ${{ github.event.release.tag_name }}
     slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
     slack-channel: ${{ matrix.channel }}
@@ -340,7 +364,7 @@ The action detects various patterns of breaking changes:
 - name: Notify Slack (Production Only)
   if: startsWith(github.event.release.tag_name, 'v')
   uses: agglayer/gha-notify-release@v1
-  with:
+    with:
     release-version: ${{ github.event.release.tag_name }}
     slack-channel: 'releases'
     release-notes: ${{ github.event.release.body }}
@@ -350,7 +374,7 @@ The action detects various patterns of breaking changes:
 
 If an Agglayer project needs to use a different bot token:
 
-```yaml
+   ```yaml
 - name: Notify Slack with Custom Bot
   uses: agglayer/gha-notify-release@v1
   with:

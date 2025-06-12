@@ -52983,6 +52983,202 @@ function formatConfigChangesForSlack(analysis) {
 }
 
 /**
+ * Analyzes release notes for e2e workflow links
+ */
+function analyzeE2ETests(releaseNotes) {
+    if (!releaseNotes) {
+        return {
+            hasE2ETests: false,
+            e2eWorkflowLinks: []
+        };
+    }
+    coreExports.debug('Analyzing release notes for e2e workflow references');
+    const workflowLinks = findE2EWorkflowLinks(releaseNotes);
+    const hasE2ETests = workflowLinks.length > 0;
+    if (hasE2ETests) {
+        coreExports.info(`Found ${workflowLinks.length} e2e workflow links`);
+    }
+    return {
+        hasE2ETests,
+        e2eWorkflowLinks: workflowLinks
+    };
+}
+/**
+ * Finds GitHub Actions workflow links related to e2e testing
+ */
+function findE2EWorkflowLinks(releaseNotes) {
+    const links = [];
+    // Pattern for GitHub Actions workflow run URLs
+    const workflowRunPattern = /https:\/\/github\.com\/([^\/]+\/[^\/]+)\/actions\/runs\/(\d+)/gi;
+    // Pattern for GitHub Actions workflow file URLs
+    const workflowFilePattern = /https:\/\/github\.com\/([^\/]+\/[^\/]+)\/actions\/workflows\/([^?\s]+)/gi;
+    // Find workflow run links
+    let match;
+    while ((match = workflowRunPattern.exec(releaseNotes)) !== null) {
+        const repository = match[1];
+        const runId = match[2];
+        // Try to determine if it's an e2e test workflow from context
+        const contextStart = Math.max(0, match.index - 100);
+        const contextEnd = Math.min(releaseNotes.length, match.index + match[0].length + 100);
+        const context = releaseNotes.slice(contextStart, contextEnd).toLowerCase();
+        if (isE2EWorkflowContext(context)) {
+            const workflowName = extractWorkflowNameFromContext(context) || `E2E Workflow Run #${runId}`;
+            const status = determineWorkflowStatus(context);
+            links.push({
+                url: match[0],
+                workflowName,
+                repository,
+                status,
+                type: 'workflow_run'
+            });
+        }
+    }
+    // Find workflow file links
+    workflowFilePattern.lastIndex = 0; // Reset regex
+    while ((match = workflowFilePattern.exec(releaseNotes)) !== null) {
+        const repository = match[1];
+        const workflowFile = match[2];
+        if (isE2EWorkflowFile(workflowFile)) {
+            const workflowName = workflowFile
+                .replace(/\.ya?ml$/, '')
+                .replace(/[-_]/g, ' ');
+            links.push({
+                url: match[0],
+                workflowName: formatWorkflowName(workflowName),
+                repository,
+                status: 'unknown',
+                type: 'workflow_file'
+            });
+        }
+    }
+    return links;
+}
+/**
+ * Determines if the context around a URL suggests it's related to e2e testing
+ */
+function isE2EWorkflowContext(context) {
+    const e2eKeywords = [
+        'e2e',
+        'end-to-end',
+        'integration test',
+        'e2e test',
+        'e2e workflow'
+    ];
+    return e2eKeywords.some((keyword) => context.includes(keyword));
+}
+/**
+ * Determines if a workflow file is likely an e2e test workflow
+ */
+function isE2EWorkflowFile(filename) {
+    const e2eWorkflowPatterns = [/e2e/i, /end-to-end/i, /integration.test/i];
+    return e2eWorkflowPatterns.some((pattern) => pattern.test(filename));
+}
+/**
+ * Determines the status of a workflow from context
+ */
+function determineWorkflowStatus(context) {
+    const passKeywords = [
+        'passed',
+        'success',
+        'successful',
+        'green',
+        'completed successfully'
+    ];
+    const failKeywords = ['failed', 'failure', 'error', 'red', 'unsuccessful'];
+    const hasPassKeyword = passKeywords.some((keyword) => context.includes(keyword));
+    const hasFailKeyword = failKeywords.some((keyword) => context.includes(keyword));
+    if (hasPassKeyword && !hasFailKeyword) {
+        return 'passed';
+    }
+    else if (hasFailKeyword && !hasPassKeyword) {
+        return 'failed';
+    }
+    return 'unknown';
+}
+/**
+ * Extracts workflow name from surrounding context
+ */
+function extractWorkflowNameFromContext(context) {
+    // Look for workflow name patterns like "E2E Tests" or "Integration Testing"
+    const namePatterns = [
+        /(?:workflow|action|job)[\s]*:[\s]*([^\n\r]+)/i,
+        /([^\n\r]*(?:e2e|integration)[^\n\r]*)/i
+    ];
+    for (const pattern of namePatterns) {
+        const match = pattern.exec(context);
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+    }
+    return null;
+}
+/**
+ * Formats workflow name for display
+ */
+function formatWorkflowName(name) {
+    return name
+        .split(/[\s-_]+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+/**
+ * Formats e2e workflow information for Slack notification
+ */
+function formatE2ETestsForSlack(analysis) {
+    if (!analysis.hasE2ETests) {
+        return '';
+    }
+    let message = '\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n';
+    analysis.e2eWorkflowLinks.forEach((link) => {
+        const icon = getWorkflowIcon(link.type);
+        const statusIcon = getStatusIcon(link.status);
+        const statusText = getStatusText(link.status);
+        message += `${icon} <${link.url}|${link.workflowName}> (${link.repository})\n`;
+        message += `${statusIcon} Status: ${statusText}\n\n`;
+    });
+    return message.trim();
+}
+/**
+ * Gets appropriate icon for workflow type
+ */
+function getWorkflowIcon(type) {
+    switch (type) {
+        case 'workflow_run':
+            return '🔄';
+        case 'workflow_file':
+            return '📋';
+        default:
+            return '🧪';
+    }
+}
+/**
+ * Gets appropriate icon for workflow status
+ */
+function getStatusIcon(status) {
+    switch (status) {
+        case 'passed':
+            return '✅';
+        case 'failed':
+            return '❌';
+        default:
+            return '❔';
+    }
+}
+/**
+ * Gets status text for display
+ */
+function getStatusText(status) {
+    switch (status) {
+        case 'passed':
+            return '*Passed*';
+        case 'failed':
+            return '*Failed*';
+        default:
+            return '*Unknown*';
+    }
+}
+
+/**
  * Sends a release notification to Slack using the Web API
  *
  * @param token - Slack bot token
@@ -52993,10 +53189,11 @@ async function sendReleaseNotification(token, channel, notification) {
     const slack = new distExports.WebClient(token);
     // Format the channel name (add # if not present and not a channel ID)
     const formattedChannel = channel.startsWith('C') || channel.startsWith('#') ? channel : `#${channel}`;
-    // Analyze release notes for breaking changes and config changes
+    // Analyze release notes for breaking changes, config changes, and e2e tests
     const breakingAnalysis = analyzeBreakingChanges(notification.releaseNotes);
     const configAnalysis = analyzeConfigChanges(notification.releaseNotes);
-    // Choose appropriate emoji and type based on changes
+    const e2eAnalysis = analyzeE2ETests(notification.releaseNotes);
+    // Choose appropriate emoji and type based on changes (priority: breaking > config > e2e > normal)
     let releaseEmoji = '🚀';
     let releaseType = '*New Release*';
     if (breakingAnalysis.hasBreakingChanges) {
@@ -53006,6 +53203,10 @@ async function sendReleaseNotification(token, channel, notification) {
     else if (configAnalysis.hasConfigChanges) {
         releaseEmoji = '⚙️🚀';
         releaseType = '*CONFIG UPDATE*';
+    }
+    else if (e2eAnalysis.hasE2ETests) {
+        releaseEmoji = '🧪🚀';
+        releaseType = '*E2E WORKFLOW RELEASE*';
     }
     // Build the main message
     let message = `${releaseEmoji} ${releaseType}: ${notification.version}`;
@@ -53022,6 +53223,11 @@ async function sendReleaseNotification(token, channel, notification) {
     if (configChangesText) {
         message += configChangesText;
     }
+    // Add e2e test section if found
+    const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis);
+    if (e2eTestsText) {
+        message += e2eTestsText;
+    }
     if (notification.releaseUrl) {
         message += `\n\n🔗 <${notification.releaseUrl}|View Release>`;
     }
@@ -53033,6 +53239,9 @@ async function sendReleaseNotification(token, channel, notification) {
     }
     else if (configAnalysis.hasConfigChanges) {
         messageColor = '#ffcc00'; // Yellow for config changes
+    }
+    else if (e2eAnalysis.hasE2ETests) {
+        messageColor = '#00bcd4'; // Cyan for e2e tested releases
     }
     try {
         const result = await slack.chat.postMessage({
@@ -53060,6 +53269,9 @@ async function sendReleaseNotification(token, channel, notification) {
             }
             if (configAnalysis.hasConfigChanges) {
                 coreExports.info(`Configuration changes highlighted in notification`);
+            }
+            if (e2eAnalysis.hasE2ETests) {
+                coreExports.info(`E2E workflow links highlighted in notification`);
             }
             coreExports.debug(`Slack response: ${JSON.stringify(result)}`);
         }
@@ -53196,6 +53408,7 @@ function generateCanvasMarkdown(channelName, releases) {
 - 🚀 **Normal releases** - Regular updates and improvements
 - ⚠️🚀 **Breaking changes** - Releases with breaking changes
 - ⚙️🚀 **Configuration updates** - Releases affecting configuration files
+- 🧪🚀 **E2E Workflows** - Releases with end-to-end workflow links
 
 📝 **Note:** This list automatically tracks the last 50 releases published to this channel.
 `;
@@ -53238,6 +53451,7 @@ function generateCanvasMarkdown(channelName, releases) {
 - **Total releases tracked:** ${releases.length}
 - **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
 - **Configuration updates:** ${releases.filter((r) => r.hasConfig).length}
+- **E2E workflows:** ${releases.filter((r) => r.hasE2E).length}
 - **Normal releases:** ${releases.filter((r) => r.changeType === 'normal').length}
 
 ## 📖 Legend
@@ -53245,9 +53459,11 @@ function generateCanvasMarkdown(channelName, releases) {
 - 🚀 **Normal Release** - Regular updates and improvements
 - ⚠️🚀 **Breaking Changes** - May require code changes
 - ⚙️🚀 **Config Updates** - Configuration files may need updates
+- 🧪🚀 **E2E Workflows** - End-to-end workflow links detected
 - 🆕 **New** - Latest release
 - ⚠️ **Breaking** - Contains breaking changes
 - ⚙️ **Config** - Contains configuration changes
+- 🧪 **E2E Workflows** - End-to-end workflow links
 
 ---
 
@@ -53265,6 +53481,8 @@ function getChangeTypeEmoji(changeType) {
             return '⚠️🚀';
         case 'config':
             return '⚙️🚀';
+        case 'e2e':
+            return '🧪🚀';
         default:
             return '🚀';
     }
@@ -53279,6 +53497,9 @@ function generateBadges(release) {
     }
     if (release.hasConfig) {
         badges.push('⚙️ *Config*');
+    }
+    if (release.hasE2E) {
+        badges.push('🧪 *E2E Workflows*');
     }
     return badges.length > 0 ? `• ${badges.join(' • ')}` : '';
 }
@@ -53428,9 +53649,10 @@ async function run() {
         if (maintainReleasesList) {
             coreExports.debug(`Releases list maintenance enabled`);
         }
-        // Analyze release notes for breaking changes and config changes
+        // Analyze release notes for breaking changes, config changes, and e2e tests
         const breakingAnalysis = analyzeBreakingChanges(releaseNotes);
         const configAnalysis = analyzeConfigChanges(releaseNotes);
+        const e2eAnalysis = analyzeE2ETests(releaseNotes);
         // Send the Slack notification
         await sendReleaseNotification(slackBotToken, slackChannel, {
             version: releaseVersion,
@@ -53443,13 +53665,16 @@ async function run() {
         let releasesListUpdated = false;
         if (maintainReleasesList) {
             const slack = new distExports.WebClient(slackBotToken);
-            // Determine change type based on analysis
+            // Determine change type based on analysis (priority: breaking > config > e2e > normal)
             let changeType = 'normal';
             if (breakingAnalysis.hasBreakingChanges) {
                 changeType = 'breaking';
             }
             else if (configAnalysis.hasConfigChanges) {
                 changeType = 'config';
+            }
+            else if (e2eAnalysis.hasE2ETests) {
+                changeType = 'e2e';
             }
             releasesListUpdated = await updateReleasesListCanvas(slack, slackChannel, {
                 version: releaseVersion,
@@ -53461,6 +53686,7 @@ async function run() {
                 changeType,
                 hasBreaking: breakingAnalysis.hasBreakingChanges,
                 hasConfig: configAnalysis.hasConfigChanges,
+                hasE2E: e2eAnalysis.hasE2ETests,
                 releaseUrl: releaseUrl || undefined
             });
             if (releasesListUpdated) {
