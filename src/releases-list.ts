@@ -81,8 +81,28 @@ export async function updateReleasesListCanvas(
       `✅ Successfully updated releases list canvas (${releases.length} releases)`
     )
     return true
-  } catch (error) {
-    core.error(`❌ Failed to update releases list canvas: ${error}`)
+  } catch (error: any) {
+    const errorMessage = error?.message || error
+
+    if (errorMessage.includes('not_in_channel')) {
+      core.warning(
+        `⚠️ Canvas update failed: Bot is not in channel ${channel}. Add the bot to the channel with: /invite @YourBotName`
+      )
+    } else if (
+      errorMessage.includes('missing_scope') ||
+      errorMessage.includes('canvases:write')
+    ) {
+      core.warning(
+        `⚠️ Canvas update failed: Bot missing 'canvases:write' permission. Add this scope in your Slack app OAuth settings.`
+      )
+    } else if (errorMessage.includes('channel_canvas_already_exists')) {
+      core.warning(
+        `⚠️ Canvas update failed: Channel canvas already exists. Please check the channel's Canvas tab.`
+      )
+    } else {
+      core.error(`❌ Failed to update releases list canvas: ${errorMessage}`)
+    }
+
     return false
   }
 }
@@ -137,7 +157,15 @@ async function createOrUpdateCanvas(
       core.info(`✅ Created new canvas ${result.canvas_id}`)
       return result.canvas_id
     } catch (error: any) {
-      if (error.data?.error === 'channel_canvas_already_exists') {
+      if (error.data?.error === 'not_in_channel') {
+        throw new Error(
+          `Bot is not in channel ${channelId}. Please add the bot to the channel using: /invite @YourBotName`
+        )
+      } else if (error.data?.error === 'missing_scope') {
+        throw new Error(
+          `Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`
+        )
+      } else if (error.data?.error === 'channel_canvas_already_exists') {
         // Canvas already exists, try to find it and update
         core.info(
           '📋 Channel canvas already exists, attempting to find and update it'
@@ -315,8 +343,14 @@ async function getChannelId(
       const foundChannel = result.channels.find((ch) => ch.name === channelName)
       return foundChannel?.id || null
     }
-  } catch (error) {
-    core.warning(`Error finding channel ID for ${channel}: ${error}`)
+  } catch (error: any) {
+    if (error.data?.error === 'missing_scope') {
+      core.info(
+        `Note: Bot needs 'channels:read' permission to resolve channel names. Please use channel ID directly or add the permission.`
+      )
+    } else {
+      core.warning(`Error finding channel ID for ${channel}: ${error}`)
+    }
   }
 
   return null
@@ -334,10 +368,16 @@ async function getChannelInfo(
     if (result.ok && result.channel) {
       return { name: (result.channel as any).name || channelId }
     }
-  } catch (error) {
-    core.warning(`Could not get channel info for ${channelId}: ${error}`)
+  } catch (error: any) {
+    if (error.data?.error === 'missing_scope') {
+      core.info(
+        `Note: Bot needs 'channels:read' permission to get channel name. Using channel ID as fallback.`
+      )
+    } else {
+      core.warning(`Could not get channel info for ${channelId}: ${error}`)
+    }
   }
-  return null
+  return { name: channelId } // Fallback to channel ID
 }
 
 /**
