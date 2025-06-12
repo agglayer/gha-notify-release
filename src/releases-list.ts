@@ -6,9 +6,10 @@ import * as path from 'path'
 export interface ReleaseEntry {
   version: string
   releaseDate: string
-  changeType: 'normal' | 'breaking' | 'config'
+  changeType: 'normal' | 'breaking' | 'config' | 'e2e'
   hasBreaking: boolean
   hasConfig: boolean
+  hasE2E: boolean
   releaseUrl?: string
 }
 
@@ -185,6 +186,7 @@ function generateCanvasMarkdown(
 - 🚀 **Normal releases** - Regular updates and improvements
 - ⚠️🚀 **Breaking changes** - Releases with breaking changes
 - ⚙️🚀 **Configuration updates** - Releases affecting configuration files
+- 🧪🚀 **E2E Workflows** - Releases with end-to-end workflow links
 
 📝 **Note:** This list automatically tracks the last 50 releases published to this channel.
 `
@@ -229,6 +231,7 @@ function generateCanvasMarkdown(
 - **Total releases tracked:** ${releases.length}
 - **Breaking changes:** ${releases.filter((r) => r.hasBreaking).length}
 - **Configuration updates:** ${releases.filter((r) => r.hasConfig).length}
+- **E2E workflows:** ${releases.filter((r) => r.hasE2E).length}
 - **Normal releases:** ${releases.filter((r) => r.changeType === 'normal').length}
 
 ## 📖 Legend
@@ -236,9 +239,11 @@ function generateCanvasMarkdown(
 - 🚀 **Normal Release** - Regular updates and improvements
 - ⚠️🚀 **Breaking Changes** - May require code changes
 - ⚙️🚀 **Config Updates** - Configuration files may need updates
+- 🧪🚀 **E2E Workflows** - End-to-end workflow links detected
 - 🆕 **New** - Latest release
 - ⚠️ **Breaking** - Contains breaking changes
 - ⚙️ **Config** - Contains configuration changes
+- 🧪 **E2E Workflows** - End-to-end workflow links
 
 ---
 
@@ -258,6 +263,8 @@ function getChangeTypeEmoji(changeType: string): string {
       return '⚠️🚀'
     case 'config':
       return '⚙️🚀'
+    case 'e2e':
+      return '🧪🚀'
     default:
       return '🚀'
   }
@@ -275,6 +282,10 @@ function generateBadges(release: ReleaseEntry): string {
 
   if (release.hasConfig) {
     badges.push('⚙️ *Config*')
+  }
+
+  if (release.hasE2E) {
+    badges.push('🧪 *E2E Workflows*')
   }
 
   return badges.length > 0 ? `• ${badges.join(' • ')}` : ''

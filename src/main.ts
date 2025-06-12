@@ -2,6 +2,7 @@ import * as core from '@actions/core'
 import { sendReleaseNotification } from './slack.js'
 import { analyzeBreakingChanges } from './breaking-changes.js'
 import { analyzeConfigChanges } from './config-analysis.js'
+import { analyzeE2ETests } from './e2e-analysis.js'
 import { updateReleasesListCanvas } from './releases-list.js'
 import { WebClient } from '@slack/web-api'
 
@@ -51,9 +52,10 @@ export async function run(): Promise<void> {
       core.debug(`Releases list maintenance enabled`)
     }
 
-    // Analyze release notes for breaking changes and config changes
+    // Analyze release notes for breaking changes, config changes, and e2e tests
     const breakingAnalysis = analyzeBreakingChanges(releaseNotes)
     const configAnalysis = analyzeConfigChanges(releaseNotes)
+    const e2eAnalysis = analyzeE2ETests(releaseNotes)
 
     // Send the Slack notification
     await sendReleaseNotification(slackBotToken, slackChannel, {
@@ -70,12 +72,14 @@ export async function run(): Promise<void> {
     if (maintainReleasesList) {
       const slack = new WebClient(slackBotToken)
 
-      // Determine change type based on analysis
-      let changeType: 'normal' | 'breaking' | 'config' = 'normal'
+      // Determine change type based on analysis (priority: breaking > config > e2e > normal)
+      let changeType: 'normal' | 'breaking' | 'config' | 'e2e' = 'normal'
       if (breakingAnalysis.hasBreakingChanges) {
         changeType = 'breaking'
       } else if (configAnalysis.hasConfigChanges) {
         changeType = 'config'
+      } else if (e2eAnalysis.hasE2ETests) {
+        changeType = 'e2e'
       }
 
       releasesListUpdated = await updateReleasesListCanvas(
@@ -91,6 +95,7 @@ export async function run(): Promise<void> {
           changeType,
           hasBreaking: breakingAnalysis.hasBreakingChanges,
           hasConfig: configAnalysis.hasConfigChanges,
+          hasE2E: e2eAnalysis.hasE2ETests,
           releaseUrl: releaseUrl || undefined
         }
       )
