@@ -206,32 +206,24 @@ export function formatE2ETestsForSlack(analysis: E2ETestAnalysis): string {
     return ''
   }
 
-  let message = '\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n'
+  let message = '\n\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n'
 
   analysis.e2eWorkflowLinks.forEach((link) => {
-    const icon = getWorkflowIcon(link.type)
     const statusIcon = getStatusIcon(link.status)
-    const statusText = getStatusText(link.status)
 
-    message += `${icon} <${link.url}|${link.workflowName}> (${link.repository})\n`
-    message += `${statusIcon} Status: ${statusText}\n\n`
+    // Simplify link text based on status
+    let linkText = 'E2E workflow run'
+    if (link.status === 'passed') {
+      linkText = 'Passing e2e ci run'
+    } else if (link.status === 'failed') {
+      linkText = 'Failed e2e ci run'
+    }
+
+    message += `${statusIcon} <${link.url}|${linkText}> (${link.repository})\n`
+    message += `${statusIcon} Status: ${getStatusText(link.status)}\n\n`
   })
 
   return message.trim()
-}
-
-/**
- * Gets appropriate icon for workflow type
- */
-function getWorkflowIcon(type: E2EWorkflowLink['type']): string {
-  switch (type) {
-    case 'workflow_run':
-      return '🔄'
-    case 'workflow_file':
-      return '📋'
-    default:
-      return '🧪'
-  }
 }
 
 /**

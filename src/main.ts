@@ -106,7 +106,8 @@ export async function run(): Promise<void> {
           hasBreaking: breakingAnalysis.hasBreakingChanges,
           hasConfig: configAnalysis.hasConfigChanges,
           hasE2E: e2eAnalysis.hasE2ETests,
-          releaseUrl: releaseUrl || undefined
+          releaseUrl: releaseUrl || undefined,
+          repositoryName
         }
       )
 

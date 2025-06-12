@@ -77,12 +77,18 @@ export async function sendReleaseNotification(
   // Add config changes section if found
   const configChangesText = formatConfigChangesForSlack(configAnalysis)
   if (configChangesText) {
+    if (breakingChangesText) {
+      message += '\n' // Add extra spacing after breaking changes
+    }
     message += configChangesText
   }
 
   // Add e2e test section if found
   const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis)
   if (e2eTestsText) {
+    if (breakingChangesText || configChangesText) {
+      message += '\n' // Add extra spacing after previous sections
+    }
     message += e2eTestsText
   }
 

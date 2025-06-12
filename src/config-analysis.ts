@@ -191,7 +191,5 @@ export function formatConfigChangesForSlack(analysis: ConfigAnalysis): string {
     }
   }
 
-  configSection += '\n\n📋 *Review configuration changes before deploying!*'
-
   return configSection
 }

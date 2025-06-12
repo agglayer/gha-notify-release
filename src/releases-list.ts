@@ -2,6 +2,10 @@ import { WebClient } from '@slack/web-api'
 import * as core from '@actions/core'
 import * as fs from 'fs'
 import * as path from 'path'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 export interface ReleaseEntry {
   version: string
@@ -11,6 +15,7 @@ export interface ReleaseEntry {
   hasConfig: boolean
   hasE2E: boolean
   releaseUrl?: string
+  repositoryName?: string
 }
 
 interface ChannelCanvasMetadata {
@@ -79,6 +84,9 @@ export async function updateReleasesListCanvas(
     })
 
     await saveReleases(channelId, releases)
+
+    // Commit the metadata files to repository to persist between runs
+    await commitMetadataFiles(channelId)
 
     core.info(
       `✅ Successfully updated releases list canvas (${releases.length} releases)`
@@ -232,35 +240,62 @@ function generateCanvasMarkdown(
 📝 **Note:** This list automatically tracks the last 50 releases published to this channel.
 `
   } else {
-    releases.forEach((release, index) => {
-      const isRecent = index < 5
-      const emoji = getChangeTypeEmoji(release.changeType)
-      const badges = generateBadges(release)
-      const releaseLink = release.releaseUrl
-        ? `[${release.version}](${release.releaseUrl})`
-        : release.version
+    // Group releases by repository
+    const releasesByRepo = new Map<string, ReleaseEntry[]>()
 
-      if (isRecent) {
-        markdown += `
-### ${emoji} ${releaseLink}
-**${release.releaseDate}**${badges ? ` ${badges}` : ''}
-`
-      } else {
-        markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
+    releases.forEach((release) => {
+      const repoName = release.repositoryName || 'Unknown Repository'
+      if (!releasesByRepo.has(repoName)) {
+        releasesByRepo.set(repoName, [])
       }
+      releasesByRepo.get(repoName)!.push(release)
     })
 
-    if (releases.length > 5) {
-      markdown += `\n---\n\n### 📋 All Releases (${releases.length} total)\n\n`
-      releases.slice(5).forEach((release) => {
+    // Display releases grouped by repository
+    let totalDisplayed = 0
+    for (const [repoName, repoReleases] of releasesByRepo.entries()) {
+      markdown += `\n#### 📁 \`${repoName}\`\n\n`
+
+      repoReleases.forEach((release, index) => {
+        const isRecent = totalDisplayed < 5
         const emoji = getChangeTypeEmoji(release.changeType)
         const badges = generateBadges(release)
         const releaseLink = release.releaseUrl
           ? `[${release.version}](${release.releaseUrl})`
           : release.version
 
-        markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
+        if (isRecent) {
+          markdown += `**${emoji} ${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n\n`
+        } else {
+          markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
+        }
+        totalDisplayed++
       })
+
+      if (repoReleases.length === 0) {
+        markdown += `*No releases yet*\n\n`
+      }
+    }
+
+    if (releases.length > 5) {
+      markdown += `\n---\n\n### 📋 All Releases (${releases.length} total)\n\n`
+
+      // Group all releases by repository for the complete list
+      for (const [repoName, repoReleases] of releasesByRepo.entries()) {
+        if (repoReleases.length > 0) {
+          markdown += `\n**📁 \`${repoName}\`**\n\n`
+          repoReleases.forEach((release) => {
+            const emoji = getChangeTypeEmoji(release.changeType)
+            const badges = generateBadges(release)
+            const releaseLink = release.releaseUrl
+              ? `[${release.version}](${release.releaseUrl})`
+              : release.version
+
+            markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`
+          })
+          markdown += `\n`
+        }
+      }
     }
 
     markdown += `
@@ -479,4 +514,48 @@ function getMetadataPath(channelId: string): string {
  */
 function getReleasesPath(channelId: string): string {
   return path.join('.github', 'releases-canvases', `${channelId}-releases.json`)
+}
+
+/**
+ * Commits metadata files to repository to persist between action runs
+ */
+async function commitMetadataFiles(channelId: string): Promise<void> {
+  try {
+    const metadataPath = getMetadataPath(channelId)
+    const releasesPath = getReleasesPath(channelId)
+
+    // Configure git user (required for commits)
+    await execAsync('git config --global user.email "action@github.com"')
+    await execAsync('git config --global user.name "GitHub Action"')
+
+    // Add the metadata files
+    await execAsync(`git add "${metadataPath}" "${releasesPath}"`)
+
+    // Check if there are changes to commit
+    try {
+      await execAsync('git diff --staged --quiet')
+      // No changes to commit
+      core.info('📝 No changes to metadata files, skipping commit')
+      return
+    } catch {
+      // There are changes to commit
+    }
+
+    // Commit the changes
+    await execAsync(
+      `git commit -m "Update releases canvas metadata for channel ${channelId}"`
+    )
+
+    // Push the changes
+    await execAsync('git push')
+
+    core.info('📝 Successfully committed canvas metadata to repository')
+  } catch (error: any) {
+    core.warning(
+      `⚠️ Failed to commit metadata files: ${error?.message || error}`
+    )
+    core.warning(
+      'This may cause canvas duplication on future runs. Consider manually committing the .github/releases-canvases/ directory.'
+    )
+  }
 }

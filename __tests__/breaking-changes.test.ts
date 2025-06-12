@@ -206,7 +206,7 @@ describe('breaking-changes.ts', () => {
       expect(result).toContain('*Conventional Commit Breaking Changes:*')
       expect(result).toContain('• feat!: new API')
       expect(result).toContain('• chore!: update deps')
-      expect(result).toContain(
+      expect(result).not.toContain(
         '🔍 *Please review the changes carefully before updating!*'
       )
     })
@@ -222,7 +222,7 @@ describe('breaking-changes.ts', () => {
       const result = formatBreakingChangesForSlack(analysis)
 
       expect(result).toContain('⚠️ *BREAKING CHANGES DETECTED*')
-      expect(result).toContain('*Breaking Changes from Release Notes:*')
+      expect(result).not.toContain('*Breaking Changes from Release Notes:*')
       expect(result).toContain('• Removed old API')
       expect(result).toContain('• Changed response format')
     })
@@ -238,7 +238,7 @@ describe('breaking-changes.ts', () => {
       const result = formatBreakingChangesForSlack(analysis)
 
       expect(result).toContain('*Conventional Commit Breaking Changes:*')
-      expect(result).toContain('*Breaking Changes from Release Notes:*')
+      expect(result).not.toContain('*Breaking Changes from Release Notes:*')
       expect(result).toContain('• feat!: new system')
       expect(result).toContain('• Removed legacy support')
     })
