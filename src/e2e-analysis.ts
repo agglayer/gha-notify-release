@@ -206,7 +206,7 @@ export function formatE2ETestsForSlack(analysis: E2ETestAnalysis): string {
     return ''
   }
 
-  let message = '\n\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n'
+  let message = '\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n'
 
   analysis.e2eWorkflowLinks.forEach((link) => {
     const statusIcon = getStatusIcon(link.status)
@@ -223,7 +223,7 @@ export function formatE2ETestsForSlack(analysis: E2ETestAnalysis): string {
     message += `${statusIcon} Status: ${getStatusText(link.status)}\n\n`
   })
 
-  return message.trim()
+  return message.trimEnd()
 }
 
 /**
