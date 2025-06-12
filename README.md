@@ -117,14 +117,17 @@ For each channel where you want notifications:
 The action requires specific Slack permissions to function properly:
 
 **Required Scopes:**
+
 - `chat:write` - Send messages to channels
 - `canvases:write` - Create and update canvases (for releases list)
 
 **Optional Scopes (for better functionality):**
+
 - `channels:read` - Resolve channel names and discover existing canvases
 - `chat:write.public` - Post to public channels without being invited
 
-**Note:** The action automatically discovers existing canvases using the Slack API, eliminating the need for local storage or git commits.
+**Note:** The action automatically discovers existing canvases using the Slack
+API, eliminating the need for local storage or git commits.
 
 ## Usage
 
@@ -151,9 +154,12 @@ jobs:
 
 ### Multi-Repository Canvas Sharing
 
-**Automatic Canvas Discovery:** The action automatically discovers existing canvases in the target channel, so multiple repositories can share the same canvas without any additional configuration.
+**Automatic Canvas Discovery:** The action automatically discovers existing
+canvases in the target channel, so multiple repositories can share the same
+canvas without any additional configuration.
 
 **Benefits:**
+
 - ✅ **Multiple repositories** automatically share the same canvas
 - ✅ **No duplicate canvases** - existing canvases are discovered and updated
 - ✅ **No git commits** or metadata files needed
@@ -161,12 +167,12 @@ jobs:
 
 ## Inputs
 
-| Input                    | Description                                                    | Required | Default               |
-| ------------------------ | -------------------------------------------------------------- | -------- | --------------------- |
-| `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -                     |
-| `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | Yes      | -                     |
-| `custom-message`         | Custom message to include with the release notification        | No       | ''                    |
-| `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`                |
+| Input                    | Description                                                    | Required | Default |
+| ------------------------ | -------------------------------------------------------------- | -------- | ------- |
+| `slack-bot-token`        | Slack Bot Token (starts with xoxb-)                            | Yes      | -       |
+| `slack-channel`          | Channel name (#releases), name (releases), or ID (C1234567890) | Yes      | -       |
+| `custom-message`         | Custom message to include with the release notification        | No       | ''      |
+| `maintain-releases-list` | Enable persistent releases list maintenance                    | No       | `true`  |
 
 ## Outputs
 
@@ -442,9 +448,12 @@ breakdowns.
 
 **Canvas Discovery:**
 
-- **Automatic detection**: The action uses `conversations.info` API to automatically discover existing canvases
-- **No storage needed**: Canvas IDs are discovered on each run, eliminating the need for local storage
-- **Multi-repository support**: Multiple repositories can share the same canvas without additional configuration
+- **Automatic detection**: The action uses `conversations.info` API to
+  automatically discover existing canvases
+- **No storage needed**: Canvas IDs are discovered on each run, eliminating the
+  need for local storage
+- **Multi-repository support**: Multiple repositories can share the same canvas
+  without additional configuration
 
 ## Contributing
 

@@ -219,6 +219,60 @@ function parseReleasesFromMarkdown(content: string): ReleaseEntry[] {
 }
 
 /**
+ * Debug channel information for troubleshooting canvas creation issues
+ */
+async function debugChannelInfo(
+  client: WebClient,
+  channelId: string
+): Promise<void> {
+  try {
+    const result = await client.conversations.info({
+      channel: channelId,
+      include_num_members: true
+    })
+
+    if (result.ok && result.channel) {
+      const channel = result.channel as any
+
+      core.info(`📋 Channel Debug Info:`)
+      core.info(`  - ID: ${channelId}`)
+      core.info(`  - Name: ${channel.name || 'N/A'}`)
+      core.info(
+        `  - Type: ${channel.is_channel ? 'public_channel' : channel.is_group ? 'private_channel' : channel.is_im ? 'direct_message' : channel.is_mpim ? 'group_message' : 'unknown'}`
+      )
+      core.info(`  - Is Archived: ${channel.is_archived || false}`)
+      core.info(`  - Is Member: ${channel.is_member || false}`)
+      core.info(
+        `  - Existing Canvas: ${channel.properties?.canvas?.file_id || 'None'}`
+      )
+
+      // Warn about potentially problematic channel types
+      if (channel.is_im || channel.is_mpim) {
+        core.warning(
+          `⚠️ Channel ${channelId} is a direct/group message. Canvas creation might not be supported for this channel type.`
+        )
+      }
+
+      if (channel.is_archived) {
+        core.warning(
+          `⚠️ Channel ${channelId} is archived. Canvas creation might fail on archived channels.`
+        )
+      }
+
+      if (!channel.is_member) {
+        core.warning(
+          `⚠️ Bot is not a member of channel ${channelId}. This might prevent canvas creation.`
+        )
+      }
+    } else {
+      core.warning(`Could not get channel info for debugging: ${result.error}`)
+    }
+  } catch (error) {
+    core.warning(`Failed to debug channel info: ${error}`)
+  }
+}
+
+/**
  * Creates a new channel canvas or updates existing one
  */
 async function createOrUpdateCanvas(
@@ -260,7 +314,64 @@ async function createOrUpdateCanvas(
     // Try to create a new channel canvas
     core.info(`🎨 Creating new channel canvas for ${channelId}`)
 
+    // Debug channel information
+    await debugChannelInfo(client, channelId)
+
     try {
+      // Log markdown content size for debugging
+      const contentLength = markdownContent.length
+      core.info(`📊 Canvas content size: ${contentLength} characters`)
+
+      // If content is very large, try with simplified content first
+      if (contentLength > 10000) {
+        core.warning(
+          `⚠️ Content is large (${contentLength} chars), trying simplified version first...`
+        )
+
+        const simpleContent = generateSimpleCanvasMarkdown(
+          channelName,
+          releases
+        )
+        core.info(`📊 Simple content size: ${simpleContent.length} characters`)
+
+        const result = await client.conversations.canvases.create({
+          channel_id: channelId,
+          document_content: {
+            type: 'markdown',
+            markdown: simpleContent
+          }
+        })
+
+        if (result.ok && result.canvas_id) {
+          core.info(
+            `✅ Created simple canvas ${result.canvas_id}, will update with full content`
+          )
+
+          // Now try to update with full content
+          try {
+            await client.canvases.edit({
+              canvas_id: result.canvas_id,
+              changes: [
+                {
+                  operation: 'replace',
+                  document_content: {
+                    type: 'markdown',
+                    markdown: markdownContent
+                  }
+                }
+              ]
+            })
+            core.info(`✅ Updated canvas with full content`)
+          } catch (updateError) {
+            core.warning(
+              `⚠️ Full content update failed, keeping simple version: ${updateError}`
+            )
+          }
+
+          return result.canvas_id
+        }
+      }
+
       const result = await client.conversations.canvases.create({
         channel_id: channelId,
         document_content: {
@@ -276,22 +387,88 @@ async function createOrUpdateCanvas(
       core.info(`✅ Created new canvas ${result.canvas_id}`)
       return result.canvas_id
     } catch (error: any) {
-      if (error.data?.error === 'not_in_channel') {
+      const errorCode = error.data?.error || error.message
+
+      if (errorCode === 'not_in_channel') {
         throw new Error(
           `Bot is not in channel ${channelId}. Please add the bot to the channel using: /invite @YourBotName`
         )
-      } else if (error.data?.error === 'missing_scope') {
+      } else if (errorCode === 'missing_scope') {
         throw new Error(
           `Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`
         )
-      } else if (error.data?.error === 'channel_canvas_already_exists') {
+      } else if (errorCode === 'channel_canvas_already_exists') {
         throw new Error(
-          'Channel canvas already exists but could not be discovered. This may be due to missing permissions. Please add channels:read scope or use the canvas ID directly.'
+          `Channel canvas already exists but could not be discovered via conversations.info. Check for a "Canvas" tab in channel ${channelId}. Possible solutions: 1) Add 'channels:read' scope to discover existing canvas, 2) Delete existing canvas to allow new creation, or 3) Check if canvas exists manually.`
+        )
+      } else if (errorCode === 'canvas_creation_failed') {
+        throw new Error(
+          `Canvas creation failed. Possible causes: 1) Canvases disabled in workspace, 2) Free tier limitations, 3) Channel type doesn't support canvases, 4) Workspace admin restrictions. Channel ID: ${channelId}`
+        )
+      } else if (errorCode === 'canvas_disabled_user_team') {
+        throw new Error(
+          `Canvases are disabled in your Slack workspace. Please contact your workspace admin to enable Canvas features.`
+        )
+      } else if (errorCode === 'team_tier_cannot_create_channel_canvases') {
+        throw new Error(
+          `Your Slack workspace tier doesn't support channel canvases. Upgrade to a paid plan or contact your workspace admin.`
+        )
+      } else if (errorCode === 'free_team_canvas_tab_already_exists') {
+        throw new Error(
+          `Free tier workspaces are limited to one canvas per channel. A canvas tab already exists in channel ${channelId}.`
         )
       }
-      throw error
+
+      // Log the full error for debugging
+      core.error(`Full error details: ${JSON.stringify(error, null, 2)}`)
+      throw new Error(
+        `Canvas creation failed with error: ${errorCode}. Check logs for full details.`
+      )
     }
   }
+}
+
+/**
+ * Generates simple markdown content for initial canvas creation
+ */
+function generateSimpleCanvasMarkdown(
+  channelName: string,
+  releases: ReleaseEntry[]
+): string {
+  const now = new Date().toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+
+  let markdown = `# 📦 Releases
+
+*Last updated: ${now}*
+
+## 🚀 Recent Releases
+
+`
+
+  if (releases.length === 0) {
+    markdown += `*No releases tracked yet.*\n`
+  } else {
+    // Show only the most recent release(s) in simple format
+    const recentReleases = releases.slice(0, 3)
+
+    recentReleases.forEach((release) => {
+      const emoji = getChangeTypeEmoji(release.changeType)
+      const repoName = release.repositoryName || 'Unknown'
+      markdown += `- ${emoji} **${repoName} ${release.version}** • ${release.releaseDate}\n`
+    })
+
+    if (releases.length > 3) {
+      markdown += `\n*And ${releases.length - 3} more releases...*\n`
+    }
+  }
+
+  markdown += `\n---\n\n*This canvas will be updated with full release details shortly.*\n`
+
+  return markdown
 }
 
 /**
