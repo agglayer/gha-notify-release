@@ -1,38 +1,36 @@
 import require$$0$1 from 'os';
 import require$$0$2 from 'crypto';
-import * as fs from 'fs';
-import fs__default from 'fs';
-import * as path from 'path';
-import path__default from 'path';
+import require$$1 from 'fs';
+import require$$1$4 from 'path';
 import require$$2$2 from 'http';
 import require$$3$1 from 'https';
 import require$$0$5 from 'net';
-import require$$1 from 'tls';
+import require$$1$1 from 'tls';
 import require$$4$1 from 'events';
 import require$$0$4 from 'assert';
-import require$$0$3, { promisify } from 'util';
+import require$$0$3 from 'util';
 import require$$0$6 from 'stream';
 import require$$7 from 'buffer';
 import require$$8 from 'querystring';
 import require$$14 from 'stream/web';
 import require$$0$8 from 'node:stream';
-import require$$1$1 from 'node:util';
+import require$$1$2 from 'node:util';
 import require$$0$7 from 'node:events';
 import require$$0$9 from 'worker_threads';
 import require$$2$3 from 'perf_hooks';
 import require$$5 from 'util/types';
 import require$$4$2 from 'async_hooks';
-import require$$1$2 from 'console';
+import require$$1$3 from 'console';
 import require$$0$a from 'url';
 import require$$3$2 from 'zlib';
 import require$$6 from 'string_decoder';
 import require$$0$b from 'diagnostics_channel';
-import require$$2$4, { exec as exec$1 } from 'child_process';
+import require$$2$4 from 'child_process';
 import require$$6$1 from 'timers';
-import require$$1$4 from 'node:path';
-import require$$1$5 from 'node:querystring';
+import require$$1$6 from 'node:path';
+import require$$1$7 from 'node:querystring';
 import require$$3$3 from 'node:zlib';
-import require$$1$3 from 'tty';
+import require$$1$5 from 'tty';
 import require$$0$c from 'node:fs';
 import require$$0$d from 'node:os';
 
@@ -259,7 +257,7 @@ function requireFileCommand () {
 	// We use any as a valid input type
 	/* eslint-disable @typescript-eslint/no-explicit-any */
 	const crypto = __importStar(require$$0$2);
-	const fs = __importStar(fs__default);
+	const fs = __importStar(require$$1);
 	const os = __importStar(require$$0$1);
 	const utils_1 = requireUtils$3();
 	function issueFileCommand(command, message) {
@@ -409,7 +407,7 @@ var hasRequiredTunnel$1;
 function requireTunnel$1 () {
 	if (hasRequiredTunnel$1) return tunnel$1;
 	hasRequiredTunnel$1 = 1;
-	var tls = require$$1;
+	var tls = require$$1$1;
 	var http = require$$2$2;
 	var https = require$$3$1;
 	var events = require$$4$1;
@@ -1791,7 +1789,7 @@ function requireSbmh () {
 	 * by Hongli Lai at: https://github.com/FooBarWidget/boyer-moore-horspool
 	 */
 	const EventEmitter = require$$0$7.EventEmitter;
-	const inherits = require$$1$1.inherits;
+	const inherits = require$$1$2.inherits;
 
 	function SBMH (needle) {
 	  if (typeof needle === 'string') {
@@ -2000,7 +1998,7 @@ function requirePartStream () {
 	if (hasRequiredPartStream) return PartStream_1;
 	hasRequiredPartStream = 1;
 
-	const inherits = require$$1$1.inherits;
+	const inherits = require$$1$2.inherits;
 	const ReadableStream = require$$0$8.Readable;
 
 	function PartStream (opts) {
@@ -2046,7 +2044,7 @@ function requireHeaderParser () {
 	hasRequiredHeaderParser = 1;
 
 	const EventEmitter = require$$0$7.EventEmitter;
-	const inherits = require$$1$1.inherits;
+	const inherits = require$$1$2.inherits;
 	const getLimit = requireGetLimit();
 
 	const StreamSearch = requireSbmh();
@@ -2154,7 +2152,7 @@ function requireDicer () {
 	hasRequiredDicer = 1;
 
 	const WritableStream = require$$0$8.Writable;
-	const inherits = require$$1$1.inherits;
+	const inherits = require$$1$2.inherits;
 
 	const StreamSearch = requireSbmh();
 
@@ -2731,7 +2729,7 @@ function requireMultipart () {
 	//     -- this will require modifications to utils.parseParams
 
 	const { Readable } = require$$0$8;
-	const { inherits } = require$$1$1;
+	const { inherits } = require$$1$2;
 
 	const Dicer = requireDicer();
 
@@ -3297,7 +3295,7 @@ function requireMain () {
 	hasRequiredMain = 1;
 
 	const WritableStream = require$$0$8.Writable;
-	const { inherits } = require$$1$1;
+	const { inherits } = require$$1$2;
 	const Dicer = requireDicer();
 
 	const MultipartParser = requireMultipart();
@@ -8121,7 +8119,7 @@ function requireConnect () {
 	    let socket;
 	    if (protocol === 'https:') {
 	      if (!tls) {
-	        tls = require$$1;
+	        tls = require$$1$1;
 	      }
 	      servername = servername || options.servername || util.getServerName(host) || null;
 
@@ -14145,7 +14143,7 @@ function requirePendingInterceptorsFormatter () {
 	hasRequiredPendingInterceptorsFormatter = 1;
 
 	const { Transform } = require$$0$6;
-	const { Console } = require$$1$2;
+	const { Console } = require$$1$3;
 
 	/**
 	 * Gets the output of `console.table(…)` as a string.
@@ -25237,7 +25235,7 @@ function requireSummary () {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.summary = exports.markdownSummary = exports.SUMMARY_DOCS_URL = exports.SUMMARY_ENV_VAR = void 0;
 		const os_1 = require$$0$1;
-		const fs_1 = fs__default;
+		const fs_1 = require$$1;
 		const { access, appendFile, writeFile } = fs_1.promises;
 		exports.SUMMARY_ENV_VAR = 'GITHUB_STEP_SUMMARY';
 		exports.SUMMARY_DOCS_URL = 'https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary';
@@ -25543,7 +25541,7 @@ function requirePathUtils () {
 	};
 	Object.defineProperty(pathUtils, "__esModule", { value: true });
 	pathUtils.toPlatformPath = pathUtils.toWin32Path = pathUtils.toPosixPath = void 0;
-	const path = __importStar(path__default);
+	const path = __importStar(require$$1$4);
 	/**
 	 * toPosixPath converts the given path to the posix form. On Windows, \\ will be
 	 * replaced with /.
@@ -25629,8 +25627,8 @@ function requireIoUtil () {
 		var _a;
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.getCmdPath = exports.tryGetExecutablePath = exports.isRooted = exports.isDirectory = exports.exists = exports.READONLY = exports.UV_FS_O_EXLOCK = exports.IS_WINDOWS = exports.unlink = exports.symlink = exports.stat = exports.rmdir = exports.rm = exports.rename = exports.readlink = exports.readdir = exports.open = exports.mkdir = exports.lstat = exports.copyFile = exports.chmod = void 0;
-		const fs = __importStar(fs__default);
-		const path = __importStar(path__default);
+		const fs = __importStar(require$$1);
+		const path = __importStar(require$$1$4);
 		_a = fs.promises
 		// export const {open} = 'fs'
 		, exports.chmod = _a.chmod, exports.copyFile = _a.copyFile, exports.lstat = _a.lstat, exports.mkdir = _a.mkdir, exports.open = _a.open, exports.readdir = _a.readdir, exports.readlink = _a.readlink, exports.rename = _a.rename, exports.rm = _a.rm, exports.rmdir = _a.rmdir, exports.stat = _a.stat, exports.symlink = _a.symlink, exports.unlink = _a.unlink;
@@ -25820,7 +25818,7 @@ function requireIo () {
 	Object.defineProperty(io, "__esModule", { value: true });
 	io.findInPath = io.which = io.mkdirP = io.rmRF = io.mv = io.cp = void 0;
 	const assert_1 = require$$0$4;
-	const path = __importStar(path__default);
+	const path = __importStar(require$$1$4);
 	const ioUtil = __importStar(requireIoUtil());
 	/**
 	 * Copies a file or folder.
@@ -26128,7 +26126,7 @@ function requireToolrunner () {
 	const os = __importStar(require$$0$1);
 	const events = __importStar(require$$4$1);
 	const child = __importStar(require$$2$4);
-	const path = __importStar(path__default);
+	const path = __importStar(require$$1$4);
 	const io = __importStar(requireIo());
 	const ioUtil = __importStar(requireIoUtil());
 	const timers_1 = require$$6$1;
@@ -26972,7 +26970,7 @@ function requireCore () {
 		const file_command_1 = requireFileCommand();
 		const utils_1 = requireUtils$3();
 		const os = __importStar(require$$0$1);
-		const path = __importStar(path__default);
+		const path = __importStar(require$$1$4);
 		const oidc_utils_1 = requireOidcUtils();
 		/**
 		 * The code to exit an action
@@ -27294,7 +27292,7 @@ function requireContext () {
 	hasRequiredContext = 1;
 	Object.defineProperty(context, "__esModule", { value: true });
 	context.Context = void 0;
-	const fs_1 = fs__default;
+	const fs_1 = require$$1;
 	const os_1 = require$$0$1;
 	class Context {
 	    /**
@@ -42321,7 +42319,7 @@ function requireMimeTypes () {
 		 */
 
 		var db = requireMimeDb();
-		var extname = path__default.extname;
+		var extname = require$$1$4.extname;
 
 		/**
 		 * Module variables.
@@ -44062,11 +44060,11 @@ function requireForm_data () {
 
 	var CombinedStream = requireCombined_stream();
 	var util = require$$0$3;
-	var path = path__default;
+	var path = require$$1$4;
 	var http = require$$2$2;
 	var https = require$$3$1;
 	var parseUrl = require$$0$a.parse;
-	var fs = fs__default;
+	var fs = require$$1;
 	var Stream = require$$0$6.Stream;
 	var mime = requireMimeTypes();
 	var asynckit = requireAsynckit();
@@ -45460,7 +45458,7 @@ function requireSupportsColor () {
 	if (hasRequiredSupportsColor) return supportsColor_1;
 	hasRequiredSupportsColor = 1;
 	const os = require$$0$1;
-	const tty = require$$1$3;
+	const tty = require$$1$5;
 	const hasFlag = requireHasFlag();
 
 	const {env} = process;
@@ -45606,7 +45604,7 @@ function requireNode () {
 	if (hasRequiredNode) return node.exports;
 	hasRequiredNode = 1;
 	(function (module, exports) {
-		const tty = require$$1$3;
+		const tty = require$$1$5;
 		const util = require$$0$3;
 
 		/**
@@ -53188,7 +53186,7 @@ function requireInstrument () {
 	instrument.addAppMetadata = addAppMetadata;
 	instrument.getUserAgent = getUserAgent;
 	const os = __importStar(require$$0$d);
-	const node_path_1 = require$$1$4;
+	const node_path_1 = require$$1$6;
 	const packageJson = require$$2;
 	/**
 	 * Replaces occurrences of '/' with ':' in a string, since '/' is meaningful inside User-Agent strings as a separator.
@@ -55894,9 +55892,9 @@ function requireWebClient () {
 	Object.defineProperty(WebClient, "__esModule", { value: true });
 	WebClient.WebClient = WebClient.WebClientEvent = void 0;
 	WebClient.buildThreadTsWarningMessage = buildThreadTsWarningMessage;
-	const node_path_1 = require$$1$4;
-	const node_querystring_1 = require$$1$5;
-	const node_util_1 = require$$1$1;
+	const node_path_1 = require$$1$6;
+	const node_querystring_1 = require$$1$7;
+	const node_util_1 = require$$1$2;
 	const node_zlib_1 = __importDefault(require$$3$3);
 	const axios_1 = __importDefault(/*@__PURE__*/ requireAxios());
 	const form_data_1 = __importDefault(requireForm_data());
@@ -57278,7 +57276,6 @@ async function sendReleaseNotification(token, channel, notification) {
     }
 }
 
-const execAsync = promisify(exec$1);
 /**
  * Updates the releases list canvas for a channel
  */
@@ -57291,11 +57288,18 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
             coreExports.error(`Could not find channel ID for ${channel}`);
             return false;
         }
-        // Load existing metadata or create new
-        const metadata = await loadCanvasMetadata(channelId);
-        coreExports.info(`📋 Loaded metadata for channel ${channelId}: ${metadata ? `Found existing canvas ${metadata.canvasId}` : 'No existing canvas found'}`);
-        // Load existing releases or create new list
-        const releases = await loadReleases(channelId);
+        // Discover existing canvas ID using conversations.info
+        const existingCanvasId = await discoverChannelCanvas(client, channelId);
+        if (existingCanvasId) {
+            coreExports.info(`📋 Found existing canvas ${existingCanvasId} for channel ${channelId}`);
+        }
+        else {
+            coreExports.info(`📋 No existing canvas found for channel ${channelId}`);
+        }
+        // Load existing releases from canvas content or create new list
+        const releases = existingCanvasId
+            ? await loadReleasesFromCanvas(client, existingCanvasId)
+            : [];
         // Add the new release to the beginning of the list
         releases.unshift(newRelease);
         // Keep only the last 50 releases
@@ -57306,19 +57310,8 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         const channelInfo = await getChannelInfo(client, channelId);
         const channelName = channelInfo?.name || channelId;
         // Create or update the canvas
-        const canvasId = await createOrUpdateCanvas(client, channelId, channelName, releases, metadata?.canvasId);
-        // Save updated metadata and releases
-        await saveCanvasMetadata(channelId, {
-            canvasId,
-            channelId,
-            channelName,
-            lastUpdated: new Date().toISOString(),
-            releaseCount: releases.length
-        });
-        await saveReleases(channelId, releases);
-        // Commit the metadata files to repository to persist between runs
-        await commitMetadataFiles(channelId);
-        coreExports.info(`✅ Successfully updated releases list canvas (${releases.length} releases)`);
+        const canvasId = await createOrUpdateCanvas(client, channelId, channelName, releases, existingCanvasId);
+        coreExports.info(`✅ Successfully updated releases list canvas ${canvasId} (${releases.length} releases)`);
         return true;
     }
     catch (error) {
@@ -57331,13 +57324,109 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
             coreExports.warning(`⚠️ Canvas update failed: Bot missing 'canvases:write' permission. Add this scope in your Slack app OAuth settings.`);
         }
         else if (errorMessage.includes('channel_canvas_already_exists')) {
-            coreExports.warning(`⚠️ Canvas update failed: Channel canvas already exists. Please check the channel's Canvas tab.`);
+            coreExports.warning(`⚠️ Canvas update failed: Channel canvas already exists but couldn't be discovered. Please check the channel's Canvas tab.`);
         }
         else {
             coreExports.error(`❌ Failed to update releases list canvas: ${errorMessage}`);
         }
         return false;
     }
+}
+/**
+ * Discovers existing channel canvas using conversations.info
+ */
+async function discoverChannelCanvas(client, channelId) {
+    try {
+        const result = await client.conversations.info({
+            channel: channelId,
+            include_num_members: false
+        });
+        if (result.ok && result.channel) {
+            // Check if channel has a canvas property
+            const channel = result.channel;
+            if (channel.properties?.canvas?.file_id) {
+                return channel.properties.canvas.file_id;
+            }
+        }
+    }
+    catch (error) {
+        if (error.data?.error === 'missing_scope') {
+            coreExports.info('Note: Bot needs channels:read permission to discover existing canvases automatically');
+        }
+        else {
+            coreExports.warning(`Could not discover canvas for channel ${channelId}: ${error}`);
+        }
+    }
+    return undefined;
+}
+/**
+ * Loads releases from existing canvas content
+ */
+async function loadReleasesFromCanvas(client, canvasId) {
+    try {
+        // Get canvas content using files.info
+        const result = await client.files.info({ file: canvasId });
+        if (result.ok && result.file) {
+            // Try to extract releases from canvas markdown content
+            // This is a simplified parser - in a real implementation you might want more robust parsing
+            const content = result.file.plain_text || '';
+            return parseReleasesFromMarkdown(content);
+        }
+    }
+    catch (error) {
+        coreExports.warning(`Could not load existing releases from canvas ${canvasId}: ${error}`);
+    }
+    return [];
+}
+/**
+ * Simple parser to extract releases from markdown content
+ * This looks for our specific release format in the canvas
+ */
+function parseReleasesFromMarkdown(content) {
+    const releases = [];
+    try {
+        // Look for repository sections like #### 📁 `repo/name`
+        const repoSections = content.split(/#### 📁 `([^`]+)`/);
+        for (let i = 1; i < repoSections.length; i += 2) {
+            const repositoryName = repoSections[i];
+            const sectionContent = repoSections[i + 1];
+            // Look for release entries like **🚀 v1.2.3** • Jan 15, 2024
+            const releaseMatches = sectionContent.matchAll(/\*\*([^*]+)\*\* • ([^•\n]+)/g);
+            for (const match of releaseMatches) {
+                const versionEmoji = match[1];
+                const releaseDate = match[2].trim();
+                // Extract version from emoji + version format
+                const versionMatch = versionEmoji.match(/🚀 (.+)$|⚠️🚀 (.+)$|⚙️🚀 (.+)$|🧪🚀 (.+)$/);
+                if (versionMatch) {
+                    const version = versionMatch[1] ||
+                        versionMatch[2] ||
+                        versionMatch[3] ||
+                        versionMatch[4];
+                    // Determine change type from emoji
+                    let changeType = 'normal';
+                    if (versionEmoji.includes('⚠️🚀'))
+                        changeType = 'breaking';
+                    else if (versionEmoji.includes('⚙️🚀'))
+                        changeType = 'config';
+                    else if (versionEmoji.includes('🧪🚀'))
+                        changeType = 'e2e';
+                    releases.push({
+                        version,
+                        releaseDate,
+                        changeType,
+                        hasBreaking: changeType === 'breaking',
+                        hasConfig: changeType === 'config',
+                        hasE2E: changeType === 'e2e',
+                        repositoryName
+                    });
+                }
+            }
+        }
+    }
+    catch (error) {
+        coreExports.warning(`Error parsing releases from canvas content: ${error}`);
+    }
+    return releases;
 }
 /**
  * Creates a new channel canvas or updates existing one
@@ -57365,7 +57454,6 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
         }
         catch (error) {
             coreExports.error(`❌ Failed to update existing canvas ${existingCanvasId}: ${error?.message || error}`);
-            // Don't fall back to creating a new canvas - throw the error so it can be handled upstream
             throw error;
         }
     }
@@ -57394,10 +57482,7 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                 throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
             }
             else if (error.data?.error === 'channel_canvas_already_exists') {
-                // Canvas already exists but we don't have its ID in metadata
-                // This can happen if metadata was lost or this is first run after manual canvas creation
-                coreExports.warning('📋 Channel canvas already exists but canvas ID not found in metadata. The existing canvas will need to be updated manually or deleted to allow automatic canvas management.');
-                throw new Error('Channel canvas already exists. Please either: 1) Delete the existing canvas in the channel to allow automatic creation, or 2) Update the canvas manually. Future releases will attempt to find and update the existing canvas.');
+                throw new Error('Channel canvas already exists but could not be discovered. This may be due to missing permissions. Please add channels:read scope or use the canvas ID directly.');
             }
             throw error;
         }
@@ -57598,107 +57683,6 @@ async function getChannelInfo(client, channelId) {
         }
     }
     return { name: channelId }; // Fallback to channel ID
-}
-/**
- * Loads canvas metadata from file
- */
-async function loadCanvasMetadata(channelId) {
-    const metadataPath = getMetadataPath(channelId);
-    if (fs.existsSync(metadataPath)) {
-        try {
-            const content = fs.readFileSync(metadataPath, 'utf8');
-            return JSON.parse(content);
-        }
-        catch (error) {
-            coreExports.warning(`Failed to load canvas metadata: ${error}`);
-        }
-    }
-    return null;
-}
-/**
- * Saves canvas metadata to file
- */
-async function saveCanvasMetadata(channelId, metadata) {
-    const metadataPath = getMetadataPath(channelId);
-    const metadataDir = path.dirname(metadataPath);
-    // Ensure directory exists
-    if (!fs.existsSync(metadataDir)) {
-        fs.mkdirSync(metadataDir, { recursive: true });
-    }
-    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-}
-/**
- * Loads releases from file
- */
-async function loadReleases(channelId) {
-    const releasesPath = getReleasesPath(channelId);
-    if (fs.existsSync(releasesPath)) {
-        try {
-            const content = fs.readFileSync(releasesPath, 'utf8');
-            return JSON.parse(content);
-        }
-        catch (error) {
-            coreExports.warning(`Failed to load releases: ${error}`);
-        }
-    }
-    return [];
-}
-/**
- * Saves releases to file
- */
-async function saveReleases(channelId, releases) {
-    const releasesPath = getReleasesPath(channelId);
-    const releasesDir = path.dirname(releasesPath);
-    // Ensure directory exists
-    if (!fs.existsSync(releasesDir)) {
-        fs.mkdirSync(releasesDir, { recursive: true });
-    }
-    fs.writeFileSync(releasesPath, JSON.stringify(releases, null, 2));
-}
-/**
- * Gets the file path for canvas metadata
- */
-function getMetadataPath(channelId) {
-    return path.join('.github', 'releases-canvases', `${channelId}-metadata.json`);
-}
-/**
- * Gets the file path for releases data
- */
-function getReleasesPath(channelId) {
-    return path.join('.github', 'releases-canvases', `${channelId}-releases.json`);
-}
-/**
- * Commits metadata files to repository to persist between action runs
- */
-async function commitMetadataFiles(channelId) {
-    try {
-        const metadataPath = getMetadataPath(channelId);
-        const releasesPath = getReleasesPath(channelId);
-        // Configure git user (required for commits)
-        await execAsync('git config --global user.email "action@github.com"');
-        await execAsync('git config --global user.name "GitHub Action"');
-        // Add the metadata files
-        await execAsync(`git add "${metadataPath}" "${releasesPath}"`);
-        // Check if there are changes to commit
-        try {
-            await execAsync('git diff --staged --quiet');
-            // No changes to commit
-            coreExports.info('📝 No changes to metadata files, skipping commit');
-            return;
-        }
-        catch {
-            // There are changes to commit
-        }
-        // Commit the changes
-        await execAsync(`git commit -m "Update releases canvas metadata for channel ${channelId}"`);
-        // Push the changes
-        await execAsync('git push');
-        coreExports.info('📝 Successfully committed canvas metadata to repository');
-    }
-    catch (error) {
-        coreExports.warning(`⚠️ Failed to commit metadata files: ${error?.message || error}`);
-        coreExports.warning('This may cause canvas duplication on future runs. Consider manually committing the .github/releases-canvases/ directory.');
-    }
 }
 
 /**
