@@ -158,14 +158,10 @@ export function formatBreakingChangesForSlack(
 
   // Add release note breaks
   if (analysis.releaseNoteBreaks.length > 0) {
-    breakingSection += '\n\n*Breaking Changes from Release Notes:*'
     for (const change of analysis.releaseNoteBreaks) {
       breakingSection += `\n• ${change}`
     }
   }
-
-  breakingSection +=
-    '\n\n🔍 *Please review the changes carefully before updating!*'
 
   return breakingSection
 }

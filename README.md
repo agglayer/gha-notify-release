@@ -112,6 +112,31 @@ For each channel where you want notifications:
 4. Value: Your bot token from step 1 (starts with `xoxb-`)
 5. Click **"Add secret"**
 
+### 4. Configure Repository Permissions (for Canvas Feature)
+
+If you're using the persistent releases list feature, the action needs write
+access to commit canvas metadata:
+
+1. In your workflow file, add the `contents: write` permission:
+   ```yaml
+   jobs:
+     notify-slack:
+       runs-on: ubuntu-latest
+       permissions:
+         contents: write # Required for canvas metadata persistence
+       steps:
+         # ... your steps
+   ```
+2. Or grant full permissions with:
+   ```yaml
+   permissions: write-all
+   ```
+
+**Why this is needed:** The action stores canvas metadata in
+`.github/releases-canvases/` to prevent duplicate canvases on subsequent runs.
+Without write permissions, each release will attempt to create a new canvas
+instead of updating the existing one.
+
 ## Usage
 
 ```yaml
@@ -124,6 +149,8 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for canvas metadata persistence
     steps:
       - name: Notify Slack
         uses: agglayer/gha-notify-release@v1
@@ -414,6 +441,22 @@ breakdowns.
   plans)
 - If Canvas already exists, the action will attempt to update it automatically
 
+**Canvas Duplication Issues:**
+
+- **Problem**: Each release creates a new canvas instead of updating existing
+  one
+- **Cause**: Missing repository write permissions for metadata persistence
+- **Solution**: Add `contents: write` permission to your workflow job:
+  ```yaml
+  jobs:
+    notify-slack:
+      permissions:
+        contents: write
+  ```
+- **Explanation**: The action stores canvas metadata in
+  `.github/releases-canvases/` directory and commits these files to persist
+  canvas IDs between workflow runs
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -436,8 +479,10 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for canvas metadata persistence
     steps:
-            - name: Notify Slack of Release
+      - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -460,6 +505,8 @@ on:
 jobs:
   notify-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for canvas metadata persistence
     strategy:
       matrix:
         notification:
@@ -490,8 +537,10 @@ on:
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for canvas metadata persistence
     steps:
-            - name: Notify Slack of Release
+      - name: Notify Slack of Release
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}

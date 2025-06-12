@@ -236,7 +236,7 @@ describe('config-analysis.ts', () => {
       expect(result).toContain(
         '<https://github.com/repo/.env.example|.env.example>'
       )
-      expect(result).toContain(
+      expect(result).not.toContain(
         '📋 *Review configuration changes before deploying!*'
       )
     })

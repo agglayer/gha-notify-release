@@ -10,7 +10,7 @@ import require$$0$5 from 'net';
 import require$$1 from 'tls';
 import require$$4$1 from 'events';
 import require$$0$4 from 'assert';
-import require$$0$3 from 'util';
+import require$$0$3, { promisify } from 'util';
 import require$$0$6 from 'stream';
 import require$$7 from 'buffer';
 import require$$8 from 'querystring';
@@ -27,7 +27,7 @@ import require$$0$a from 'url';
 import require$$3$2 from 'zlib';
 import require$$6 from 'string_decoder';
 import require$$0$b from 'diagnostics_channel';
-import require$$2$4 from 'child_process';
+import require$$2$4, { exec as exec$1 } from 'child_process';
 import require$$6$1 from 'timers';
 import require$$1$4 from 'node:path';
 import require$$1$5 from 'node:querystring';
@@ -56814,13 +56814,10 @@ function formatBreakingChangesForSlack(analysis) {
     }
     // Add release note breaks
     if (analysis.releaseNoteBreaks.length > 0) {
-        breakingSection += '\n\n*Breaking Changes from Release Notes:*';
         for (const change of analysis.releaseNoteBreaks) {
             breakingSection += `\n• ${change}`;
         }
     }
-    breakingSection +=
-        '\n\n🔍 *Please review the changes carefully before updating!*';
     return breakingSection;
 }
 
@@ -56962,7 +56959,6 @@ function formatConfigChangesForSlack(analysis) {
             }
         }
     }
-    configSection += '\n\n📋 *Review configuration changes before deploying!*';
     return configSection;
 }
 
@@ -57112,28 +57108,21 @@ function formatE2ETestsForSlack(analysis) {
     if (!analysis.hasE2ETests) {
         return '';
     }
-    let message = '\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n';
+    let message = '\n\n\n🧪 *E2E WORKFLOWS DETECTED*\n\n';
     analysis.e2eWorkflowLinks.forEach((link) => {
-        const icon = getWorkflowIcon(link.type);
         const statusIcon = getStatusIcon(link.status);
-        const statusText = getStatusText(link.status);
-        message += `${icon} <${link.url}|${link.workflowName}> (${link.repository})\n`;
-        message += `${statusIcon} Status: ${statusText}\n\n`;
+        // Simplify link text based on status
+        let linkText = 'E2E workflow run';
+        if (link.status === 'passed') {
+            linkText = 'Passing e2e ci run';
+        }
+        else if (link.status === 'failed') {
+            linkText = 'Failed e2e ci run';
+        }
+        message += `${statusIcon} <${link.url}|${linkText}> (${link.repository})\n`;
+        message += `${statusIcon} Status: ${getStatusText(link.status)}\n\n`;
     });
     return message.trim();
-}
-/**
- * Gets appropriate icon for workflow type
- */
-function getWorkflowIcon(type) {
-    switch (type) {
-        case 'workflow_run':
-            return '🔄';
-        case 'workflow_file':
-            return '📋';
-        default:
-            return '🧪';
-    }
 }
 /**
  * Gets appropriate icon for workflow status
@@ -57211,11 +57200,17 @@ async function sendReleaseNotification(token, channel, notification) {
     // Add config changes section if found
     const configChangesText = formatConfigChangesForSlack(configAnalysis);
     if (configChangesText) {
+        if (breakingChangesText) {
+            message += '\n'; // Add extra spacing after breaking changes
+        }
         message += configChangesText;
     }
     // Add e2e test section if found
     const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis);
     if (e2eTestsText) {
+        if (breakingChangesText || configChangesText) {
+            message += '\n'; // Add extra spacing after previous sections
+        }
         message += e2eTestsText;
     }
     if (notification.releaseUrl) {
@@ -57283,6 +57278,7 @@ async function sendReleaseNotification(token, channel, notification) {
     }
 }
 
+const execAsync = promisify(exec$1);
 /**
  * Updates the releases list canvas for a channel
  */
@@ -57320,6 +57316,8 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
             releaseCount: releases.length
         });
         await saveReleases(channelId, releases);
+        // Commit the metadata files to repository to persist between runs
+        await commitMetadataFiles(channelId);
         coreExports.info(`✅ Successfully updated releases list canvas (${releases.length} releases)`);
         return true;
     }
@@ -57441,33 +57439,55 @@ function generateCanvasMarkdown(channelName, releases) {
 `;
     }
     else {
-        releases.forEach((release, index) => {
-            const isRecent = index < 5;
-            const emoji = getChangeTypeEmoji(release.changeType);
-            const badges = generateBadges(release);
-            const releaseLink = release.releaseUrl
-                ? `[${release.version}](${release.releaseUrl})`
-                : release.version;
-            if (isRecent) {
-                markdown += `
-### ${emoji} ${releaseLink}
-**${release.releaseDate}**${badges ? ` ${badges}` : ''}
-`;
+        // Group releases by repository
+        const releasesByRepo = new Map();
+        releases.forEach((release) => {
+            const repoName = release.repositoryName || 'Unknown Repository';
+            if (!releasesByRepo.has(repoName)) {
+                releasesByRepo.set(repoName, []);
             }
-            else {
-                markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`;
-            }
+            releasesByRepo.get(repoName).push(release);
         });
-        if (releases.length > 5) {
-            markdown += `\n---\n\n### 📋 All Releases (${releases.length} total)\n\n`;
-            releases.slice(5).forEach((release) => {
+        // Display releases grouped by repository
+        let totalDisplayed = 0;
+        for (const [repoName, repoReleases] of releasesByRepo.entries()) {
+            markdown += `\n#### 📁 \`${repoName}\`\n\n`;
+            repoReleases.forEach((release, index) => {
+                const isRecent = totalDisplayed < 5;
                 const emoji = getChangeTypeEmoji(release.changeType);
                 const badges = generateBadges(release);
                 const releaseLink = release.releaseUrl
                     ? `[${release.version}](${release.releaseUrl})`
                     : release.version;
-                markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`;
+                if (isRecent) {
+                    markdown += `**${emoji} ${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n\n`;
+                }
+                else {
+                    markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`;
+                }
+                totalDisplayed++;
             });
+            if (repoReleases.length === 0) {
+                markdown += `*No releases yet*\n\n`;
+            }
+        }
+        if (releases.length > 5) {
+            markdown += `\n---\n\n### 📋 All Releases (${releases.length} total)\n\n`;
+            // Group all releases by repository for the complete list
+            for (const [repoName, repoReleases] of releasesByRepo.entries()) {
+                if (repoReleases.length > 0) {
+                    markdown += `\n**📁 \`${repoName}\`**\n\n`;
+                    repoReleases.forEach((release) => {
+                        const emoji = getChangeTypeEmoji(release.changeType);
+                        const badges = generateBadges(release);
+                        const releaseLink = release.releaseUrl
+                            ? `[${release.version}](${release.releaseUrl})`
+                            : release.version;
+                        markdown += `- ${emoji} **${releaseLink}** • ${release.releaseDate}${badges ? ` ${badges}` : ''}\n`;
+                    });
+                    markdown += `\n`;
+                }
+            }
         }
         markdown += `
 
@@ -57647,6 +57667,39 @@ function getMetadataPath(channelId) {
 function getReleasesPath(channelId) {
     return path.join('.github', 'releases-canvases', `${channelId}-releases.json`);
 }
+/**
+ * Commits metadata files to repository to persist between action runs
+ */
+async function commitMetadataFiles(channelId) {
+    try {
+        const metadataPath = getMetadataPath(channelId);
+        const releasesPath = getReleasesPath(channelId);
+        // Configure git user (required for commits)
+        await execAsync('git config --global user.email "action@github.com"');
+        await execAsync('git config --global user.name "GitHub Action"');
+        // Add the metadata files
+        await execAsync(`git add "${metadataPath}" "${releasesPath}"`);
+        // Check if there are changes to commit
+        try {
+            await execAsync('git diff --staged --quiet');
+            // No changes to commit
+            coreExports.info('📝 No changes to metadata files, skipping commit');
+            return;
+        }
+        catch {
+            // There are changes to commit
+        }
+        // Commit the changes
+        await execAsync(`git commit -m "Update releases canvas metadata for channel ${channelId}"`);
+        // Push the changes
+        await execAsync('git push');
+        coreExports.info('📝 Successfully committed canvas metadata to repository');
+    }
+    catch (error) {
+        coreExports.warning(`⚠️ Failed to commit metadata files: ${error?.message || error}`);
+        coreExports.warning('This may cause canvas duplication on future runs. Consider manually committing the .github/releases-canvases/ directory.');
+    }
+}
 
 /**
  * The main function for the action.
@@ -57729,7 +57782,8 @@ async function run() {
                 hasBreaking: breakingAnalysis.hasBreakingChanges,
                 hasConfig: configAnalysis.hasConfigChanges,
                 hasE2E: e2eAnalysis.hasE2ETests,
-                releaseUrl: releaseUrl || undefined
+                releaseUrl: releaseUrl || undefined,
+                repositoryName
             });
             if (releasesListUpdated) {
                 coreExports.info('Releases list Canvas updated successfully!');
