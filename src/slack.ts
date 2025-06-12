@@ -56,11 +56,10 @@ export async function sendReleaseNotification(
     releaseType = '*E2E WORKFLOW RELEASE*'
   }
 
-  // Build the main message
+  // Build the main message with repository name inline
   let message = `${releaseEmoji} ${releaseType}: ${notification.version}`
-
   if (notification.repositoryName) {
-    message += `\n📦 *Repository:* ${notification.repositoryName}`
+    message += ` (${notification.repositoryName})`
   }
 
   if (notification.customMessage) {

@@ -50,6 +50,8 @@ describe('main.ts', () => {
       },
       payload: {
         release: {
+          tag_name: 'v1.2.3',
+          html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
           body: 'Regular release with bug fixes and improvements'
         }
       }
@@ -58,14 +60,10 @@ describe('main.ts', () => {
     // Set the action's inputs as return values from core.getInput().
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.2.3'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
           return 'releases'
-        case 'release-url':
-          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
         case 'custom-message':
           return 'Test release message'
         default:
@@ -110,7 +108,9 @@ describe('main.ts', () => {
                 type: 'section',
                 text: expect.objectContaining({
                   type: 'mrkdwn',
-                  text: expect.stringContaining('🚀 *New Release*: v1.2.3')
+                  text: expect.stringContaining(
+                    '🚀 *New Release*: v1.2.3 (owner/repo)'
+                  )
                 })
               })
             ])
@@ -130,6 +130,9 @@ describe('main.ts', () => {
 
   it('Detects and highlights breaking changes in release notes', async () => {
     // Update GitHub context with breaking changes
+    mockGitHubContext.payload.release.tag_name = 'v2.0.0'
+    mockGitHubContext.payload.release.html_url =
+      'https://github.com/owner/repo/releases/tag/v2.0.0'
     mockGitHubContext.payload.release.body = `## What's Changed
           
           ### Features
@@ -140,11 +143,9 @@ describe('main.ts', () => {
           - Removed legacy /v1 endpoints
           - Changed response format for all APIs`
 
-    // Mock release version and other inputs
+    // Mock inputs
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v2.0.0'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
@@ -169,7 +170,7 @@ describe('main.ts', () => {
               expect.objectContaining({
                 text: expect.objectContaining({
                   text: expect.stringContaining(
-                    '⚠️🚀 *BREAKING RELEASE*: v2.0.0'
+                    '⚠️🚀 *BREAKING RELEASE*: v2.0.0 (owner/repo)'
                   )
                 })
               })
@@ -187,16 +188,17 @@ describe('main.ts', () => {
 
   it('Detects conventional commit breaking changes', async () => {
     // Update GitHub context with conventional commit breaking changes
+    mockGitHubContext.payload.release.tag_name = 'v1.5.0'
+    mockGitHubContext.payload.release.html_url =
+      'https://github.com/owner/repo/releases/tag/v1.5.0'
     mockGitHubContext.payload.release.body = `### Commits in this release:
           - feat!: add new authentication system
           - fix: resolve memory leak
           - chore!: update dependencies with API changes`
 
-    // Mock release version and other inputs
+    // Mock inputs
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.5.0'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
@@ -231,14 +233,10 @@ describe('main.ts', () => {
     // Mock getInput to return empty bot token
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.2.3'
         case 'slack-bot-token':
           return '' // Empty bot token input
         case 'slack-channel':
           return 'releases'
-        case 'release-url':
-          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
         case 'custom-message':
           return 'Test release message'
         default:
@@ -262,14 +260,10 @@ describe('main.ts', () => {
     // Mock getInput to return empty channel (should default to '#feed_agglayer-notifier')
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.2.3'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
           return '' // Empty channel should default to '#feed_agglayer-notifier'
-        case 'release-url':
-          return 'https://github.com/owner/repo/releases/tag/v1.2.3'
         case 'custom-message':
           return 'Test release message'
         default:
@@ -282,7 +276,7 @@ describe('main.ts', () => {
     // Verify that postMessage was called with default channel
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        channel: '#feed_agglayer-notifier'
+        channel: 'C090TACJ9KN'
       })
     )
   })
@@ -291,8 +285,6 @@ describe('main.ts', () => {
     // Mock getInput to return missing bot token and no environment variable
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.2.3'
         case 'slack-bot-token':
           return '' // Missing bot token
         default:
@@ -327,6 +319,9 @@ describe('main.ts', () => {
 
   it('Detects and highlights config changes in release notes', async () => {
     // Update GitHub context with config changes
+    mockGitHubContext.payload.release.tag_name = 'v1.3.0'
+    mockGitHubContext.payload.release.html_url =
+      'https://github.com/owner/repo/releases/tag/v1.3.0'
     mockGitHubContext.payload.release.body = `## Configuration Updates
           
           Please update your config files:
@@ -342,11 +337,9 @@ describe('main.ts', () => {
           }
           \`\`\``
 
-    // Mock release version and other inputs
+    // Mock inputs
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v1.3.0'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
@@ -370,7 +363,9 @@ describe('main.ts', () => {
             blocks: expect.arrayContaining([
               expect.objectContaining({
                 text: expect.objectContaining({
-                  text: expect.stringContaining('⚙️🚀 *CONFIG UPDATE*: v1.3.0')
+                  text: expect.stringContaining(
+                    '⚙️🚀 *CONFIG UPDATE*: v1.3.0 (owner/repo)'
+                  )
                 })
               })
             ])
@@ -387,6 +382,9 @@ describe('main.ts', () => {
 
   it('Prioritizes breaking changes over config changes', async () => {
     // Update GitHub context with both breaking and config changes
+    mockGitHubContext.payload.release.tag_name = 'v2.0.0'
+    mockGitHubContext.payload.release.html_url =
+      'https://github.com/owner/repo/releases/tag/v2.0.0'
     mockGitHubContext.payload.release.body = `## Major Release
           
           ## BREAKING CHANGES
@@ -400,11 +398,9 @@ describe('main.ts', () => {
           + new_setting: value
           \`\`\``
 
-    // Mock release version and other inputs
+    // Mock inputs
     core.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case 'release-version':
-          return 'v2.0.0'
         case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
