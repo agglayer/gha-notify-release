@@ -340,21 +340,35 @@ function splitBulletPoints(content: string): string[] {
     return []
   }
 
-  // First, normalize the content by removing any leading bullet point
+  // Remove any leading bullet marker first
   let text = content.replace(/^[-*•]\s*/, '').trim()
   core.info(`📋 After removing leading bullet: "${text}"`)
 
-  // Split by bullet points that appear within the text
-  // This handles patterns like "text • more text • even more text"
-  const parts = text.split(/\s*•\s+/)
-  core.info(`📋 Split result: ${JSON.stringify(parts)}`)
+  // The content appears to be concatenated with " • " (space-bullet-space)
+  // Split by this exact pattern
+  let parts: string[]
+  if (text.includes(' • ')) {
+    parts = text.split(' • ')
+    core.info(`📋 Split by ' • ' pattern: ${JSON.stringify(parts)}`)
+  } else if (text.includes('• ')) {
+    parts = text.split('• ')
+    core.info(`📋 Split by '• ' pattern: ${JSON.stringify(parts)}`)
+  } else if (text.includes(' •')) {
+    parts = text.split(' •')
+    core.info(`📋 Split by ' •' pattern: ${JSON.stringify(parts)}`)
+  } else {
+    parts = [text]
+    core.info(
+      `📋 No bullet patterns found, keeping as single item: ${JSON.stringify(parts)}`
+    )
+  }
 
   // Clean up each part
   const result = parts
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
     .map((part) => {
-      // Remove any remaining bullet markers at the start
+      // Remove any remaining bullet markers
       return part.replace(/^[-*•]\s*/, '').trim()
     })
     .filter((part) => part.length > 0)
