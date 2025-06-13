@@ -32,18 +32,74 @@ export function analyzeE2ETests(releaseNotes?: string): E2ETestAnalysis {
 
   core.debug('Analyzing release notes for e2e workflow references')
 
+  // First, look for dedicated E2E sections
+  const e2eSectionItems = findE2ESectionItems(releaseNotes)
+
+  // Then, find workflow links throughout the document
   const workflowLinks = findE2EWorkflowLinks(releaseNotes)
 
-  const hasE2ETests = workflowLinks.length > 0
+  // Combine both methods - if we found dedicated E2E section items, that indicates E2E tests
+  const hasE2ETests = workflowLinks.length > 0 || e2eSectionItems.length > 0
 
   if (hasE2ETests) {
-    core.info(`Found ${workflowLinks.length} e2e workflow links`)
+    if (workflowLinks.length > 0) {
+      core.info(`Found ${workflowLinks.length} e2e workflow links`)
+    }
+    if (e2eSectionItems.length > 0) {
+      core.info(`Found ${e2eSectionItems.length} e2e section items`)
+    }
   }
 
   return {
     hasE2ETests,
     e2eWorkflowLinks: workflowLinks
   }
+}
+
+/**
+ * Finds E2E items from dedicated E2E testing sections
+ */
+function findE2ESectionItems(releaseNotes: string): string[] {
+  const e2eItems: string[] = []
+  const lines = releaseNotes.split('\n')
+  let inE2ESection = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+
+    // Check if this line is an E2E section header
+    // Matches: "## 🧪 E2E Testing", "### Testing & Validation", "# End-to-End Tests", etc.
+    if (
+      /^#{1,4}\s*[🧪🔬⚡]*\s*(?:e2e|end.to.end|testing|validation)\s*(?:testing|tests|workflows?)?\s*[🧪🔬⚡]*\s*:?\s*$/i.test(
+        line
+      )
+    ) {
+      inE2ESection = true
+      core.debug(`Found E2E section: ${line}`)
+      continue
+    }
+
+    // Check if we've hit another section header (stop processing this section)
+    if (inE2ESection && /^#{1,4}\s/.test(line)) {
+      inE2ESection = false
+      continue
+    }
+
+    // If we're in an E2E section and this is a bullet point, capture it
+    if (
+      inE2ESection &&
+      (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))
+    ) {
+      const cleanLine = line.replace(/^[-*•]\s*/, '').trim()
+      if (cleanLine) {
+        // Only add non-empty lines
+        e2eItems.push(cleanLine)
+        core.debug(`Found E2E item: ${cleanLine}`)
+      }
+    }
+  }
+
+  return e2eItems
 }
 
 /**

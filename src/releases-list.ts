@@ -272,15 +272,29 @@ async function discoverChannelCanvas(
         channel.properties?.canvas?.id ||
         channel.canvas?.id
 
-      if (canvasId) {
+      // Also check the tabs structure for canvas tabs
+      let canvasFromTabs: string | undefined
+      if (channel.properties?.tabs) {
+        for (const tab of channel.properties.tabs) {
+          if (tab.type === 'canvas' && tab.data?.file_id) {
+            canvasFromTabs = tab.data.file_id
+            core.info(`📋 Found canvas in tabs structure: ${canvasFromTabs}`)
+            break
+          }
+        }
+      }
+
+      const finalCanvasId = canvasId || canvasFromTabs
+
+      if (finalCanvasId) {
         core.info(
-          `✅ Found existing canvas via conversations.info: ${canvasId}`
+          `✅ Found existing canvas via conversations.info: ${finalCanvasId}`
         )
-        return canvasId
+        return finalCanvasId
       } else {
         core.info(`📋 No canvas found in channel properties`)
         core.info(
-          `📋 Checked fields: properties.canvas.file_id, canvas.file_id, properties.canvas_id, canvas_id, properties.canvas.id, canvas.id`
+          `📋 Checked fields: properties.canvas.file_id, canvas.file_id, properties.canvas_id, canvas_id, properties.canvas.id, canvas.id, properties.tabs[].data.file_id`
         )
       }
     } else {
