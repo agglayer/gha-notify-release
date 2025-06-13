@@ -210,8 +210,15 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     timeZoneName: 'short'
   })
 
-  let content = `# 📦 ${release.repositoryName}
-## Latest Release: ${release.version}
+  core.debug(`📋 Generating canvas content for ${release.repositoryName}`)
+  core.debug(
+    `📋 Breaking analysis: ${JSON.stringify(release.breakingAnalysis, null, 2)}`
+  )
+  core.debug(
+    `📋 Config analysis: ${JSON.stringify(release.configAnalysis, null, 2)}`
+  )
+
+  let content = `## Latest Release: ${release.version}
 
 *Last updated: ${now}*
 
@@ -229,8 +236,19 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     content += `⚠️ **BREAKING CHANGES DETECTED**\n\n`
 
     if (release.breakingAnalysis.releaseNoteBreaks.length > 0) {
+      core.debug(
+        `📋 Processing ${release.breakingAnalysis.releaseNoteBreaks.length} breaking changes`
+      )
       for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
-        content += `• ${breakingChange}\n`
+        core.debug(`📋 Breaking change content: "${breakingChange}"`)
+        // Split by bullet points in case they're concatenated
+        const items = splitBulletPoints(breakingChange)
+        core.debug(
+          `📋 Split into ${items.length} items: ${JSON.stringify(items)}`
+        )
+        for (const item of items) {
+          content += `• ${item}\n`
+        }
       }
       content += '\n'
     }
@@ -238,7 +256,10 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
       for (const commitBreak of release.breakingAnalysis
         .conventionalCommitBreaks) {
-        content += `• ${commitBreak}\n`
+        const items = splitBulletPoints(commitBreak)
+        for (const item of items) {
+          content += `• ${item}\n`
+        }
       }
       content += '\n'
     }
@@ -258,9 +279,20 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
 
     if (release.configAnalysis.configDiffs.length > 0) {
       content += `**Configuration Updates:**\n`
+      core.debug(
+        `📋 Processing ${release.configAnalysis.configDiffs.length} config diffs`
+      )
       for (const diff of release.configAnalysis.configDiffs) {
+        core.debug(`📋 Config diff: ${JSON.stringify(diff)}`)
         if (diff.type === 'mention') {
-          content += `• ${diff.content}\n`
+          // Split the content in case it contains multiple bullet points
+          const items = splitBulletPoints(diff.content)
+          core.debug(
+            `📋 Config content split into ${items.length} items: ${JSON.stringify(items)}`
+          )
+          for (const item of items) {
+            content += `• ${item}\n`
+          }
         } else {
           content += `• ${diff.filename} - See release notes for details\n`
         }
@@ -294,7 +326,34 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 • Automatically updated by the release notification system
 • Shows the same content as posted to the Slack channel`
 
+  core.debug(`📋 Generated canvas content length: ${content.length} characters`)
   return content
+}
+
+/**
+ * Splits content that might contain concatenated bullet points into individual items
+ */
+function splitBulletPoints(content: string): string[] {
+  core.debug(`📋 splitBulletPoints input: "${content}"`)
+
+  // Remove any existing bullet markers at the start
+  let cleaned = content.replace(/^[-*•]\s*/, '').trim()
+  core.debug(`📋 After removing leading bullets: "${cleaned}"`)
+
+  // If the content contains bullet markers within it, split by them
+  if (cleaned.includes('•')) {
+    const result = cleaned
+      .split('•')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+    core.debug(`📋 Split by bullets, result: ${JSON.stringify(result)}`)
+    return result
+  }
+
+  // If no internal bullets, return as single item
+  const result = [cleaned].filter((item) => item.length > 0)
+  core.debug(`📋 No internal bullets, result: ${JSON.stringify(result)}`)
+  return result
 }
 
 /**

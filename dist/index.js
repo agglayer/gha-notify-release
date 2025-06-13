@@ -57520,8 +57520,10 @@ function generateRepositoryCanvasContent(release) {
         minute: '2-digit',
         timeZoneName: 'short'
     });
-    let content = `# 📦 ${release.repositoryName}
-## Latest Release: ${release.version}
+    coreExports.debug(`📋 Generating canvas content for ${release.repositoryName}`);
+    coreExports.debug(`📋 Breaking analysis: ${JSON.stringify(release.breakingAnalysis, null, 2)}`);
+    coreExports.debug(`📋 Config analysis: ${JSON.stringify(release.configAnalysis, null, 2)}`);
+    let content = `## Latest Release: ${release.version}
 
 *Last updated: ${now}*
 
@@ -57536,15 +57538,25 @@ function generateRepositoryCanvasContent(release) {
     if (release.breakingAnalysis.hasBreakingChanges) {
         content += `⚠️ **BREAKING CHANGES DETECTED**\n\n`;
         if (release.breakingAnalysis.releaseNoteBreaks.length > 0) {
+            coreExports.debug(`📋 Processing ${release.breakingAnalysis.releaseNoteBreaks.length} breaking changes`);
             for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
-                content += `• ${breakingChange}\n`;
+                coreExports.debug(`📋 Breaking change content: "${breakingChange}"`);
+                // Split by bullet points in case they're concatenated
+                const items = splitBulletPoints(breakingChange);
+                coreExports.debug(`📋 Split into ${items.length} items: ${JSON.stringify(items)}`);
+                for (const item of items) {
+                    content += `• ${item}\n`;
+                }
             }
             content += '\n';
         }
         if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
             for (const commitBreak of release.breakingAnalysis
                 .conventionalCommitBreaks) {
-                content += `• ${commitBreak}\n`;
+                const items = splitBulletPoints(commitBreak);
+                for (const item of items) {
+                    content += `• ${item}\n`;
+                }
             }
             content += '\n';
         }
@@ -57561,9 +57573,16 @@ function generateRepositoryCanvasContent(release) {
         }
         if (release.configAnalysis.configDiffs.length > 0) {
             content += `**Configuration Updates:**\n`;
+            coreExports.debug(`📋 Processing ${release.configAnalysis.configDiffs.length} config diffs`);
             for (const diff of release.configAnalysis.configDiffs) {
+                coreExports.debug(`📋 Config diff: ${JSON.stringify(diff)}`);
                 if (diff.type === 'mention') {
-                    content += `• ${diff.content}\n`;
+                    // Split the content in case it contains multiple bullet points
+                    const items = splitBulletPoints(diff.content);
+                    coreExports.debug(`📋 Config content split into ${items.length} items: ${JSON.stringify(items)}`);
+                    for (const item of items) {
+                        content += `• ${item}\n`;
+                    }
                 }
                 else {
                     content += `• ${diff.filename} - See release notes for details\n`;
@@ -57593,7 +57612,30 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 • Contains the latest release information for \`${release.repositoryName}\`
 • Automatically updated by the release notification system
 • Shows the same content as posted to the Slack channel`;
+    coreExports.debug(`📋 Generated canvas content length: ${content.length} characters`);
     return content;
+}
+/**
+ * Splits content that might contain concatenated bullet points into individual items
+ */
+function splitBulletPoints(content) {
+    coreExports.debug(`📋 splitBulletPoints input: "${content}"`);
+    // Remove any existing bullet markers at the start
+    let cleaned = content.replace(/^[-*•]\s*/, '').trim();
+    coreExports.debug(`📋 After removing leading bullets: "${cleaned}"`);
+    // If the content contains bullet markers within it, split by them
+    if (cleaned.includes('•')) {
+        const result = cleaned
+            .split('•')
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
+        coreExports.debug(`📋 Split by bullets, result: ${JSON.stringify(result)}`);
+        return result;
+    }
+    // If no internal bullets, return as single item
+    const result = [cleaned].filter((item) => item.length > 0);
+    coreExports.debug(`📋 No internal bullets, result: ${JSON.stringify(result)}`);
+    return result;
 }
 /**
  * Gets the channel ID from channel name or returns the ID if already provided
