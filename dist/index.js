@@ -57438,13 +57438,25 @@ async function discoverChannelCanvas(client, channelId) {
                 channel.canvas_id ||
                 channel.properties?.canvas?.id ||
                 channel.canvas?.id;
-            if (canvasId) {
-                coreExports.info(`✅ Found existing canvas via conversations.info: ${canvasId}`);
-                return canvasId;
+            // Also check the tabs structure for canvas tabs
+            let canvasFromTabs;
+            if (channel.properties?.tabs) {
+                for (const tab of channel.properties.tabs) {
+                    if (tab.type === 'canvas' && tab.data?.file_id) {
+                        canvasFromTabs = tab.data.file_id;
+                        coreExports.info(`📋 Found canvas in tabs structure: ${canvasFromTabs}`);
+                        break;
+                    }
+                }
+            }
+            const finalCanvasId = canvasId || canvasFromTabs;
+            if (finalCanvasId) {
+                coreExports.info(`✅ Found existing canvas via conversations.info: ${finalCanvasId}`);
+                return finalCanvasId;
             }
             else {
                 coreExports.info(`📋 No canvas found in channel properties`);
-                coreExports.info(`📋 Checked fields: properties.canvas.file_id, canvas.file_id, properties.canvas_id, canvas_id, properties.canvas.id, canvas.id`);
+                coreExports.info(`📋 Checked fields: properties.canvas.file_id, canvas.file_id, properties.canvas_id, canvas_id, properties.canvas.id, canvas.id, properties.tabs[].data.file_id`);
             }
         }
         else {

@@ -45,8 +45,8 @@ export function analyzeBreakingChanges(
     )
   }
 
-  // Pattern 2: Explicit "BREAKING CHANGE" or "BREAKING CHANGES" sections
-  // Look for section headers followed by bullet point content
+  // Pattern 2: Look for dedicated Breaking Changes sections
+  // More flexible pattern to handle emojis and different formatting
   const lines = releaseNotes.split('\n')
   let inBreakingSection = false
   let foundBreakingSection = false
@@ -54,14 +54,20 @@ export function analyzeBreakingChanges(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
-    // Check if this line is a BREAKING CHANGES header
-    if (/^#{1,4}\s*BREAKING\s+CHANGES?\s*:?\s*$/i.test(line)) {
+    // Check if this line is a Breaking Changes header (with flexible emoji and text matching)
+    // Matches: "## ⚠️ Breaking Changes", "### BREAKING CHANGES", "# Breaking Change:", etc.
+    if (
+      /^#{1,4}\s*[⚠️🚨💥]*\s*BREAKING\s+CHANGES?\s*[⚠️🚨💥]*\s*:?\s*$/i.test(
+        line
+      )
+    ) {
       inBreakingSection = true
       foundBreakingSection = true
+      core.debug(`Found breaking changes section: ${line}`)
       continue
     }
 
-    // Check if we've hit another section header
+    // Check if we've hit another section header (stop processing this section)
     if (inBreakingSection && /^#{1,4}\s/.test(line)) {
       inBreakingSection = false
       continue
@@ -72,7 +78,12 @@ export function analyzeBreakingChanges(
       inBreakingSection &&
       (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))
     ) {
-      analysis.releaseNoteBreaks.push(line)
+      const cleanLine = line.replace(/^[-*•]\s*/, '').trim()
+      if (cleanLine) {
+        // Only add non-empty lines
+        analysis.releaseNoteBreaks.push(cleanLine)
+        core.debug(`Found breaking change item: ${cleanLine}`)
+      }
     }
   }
 
@@ -81,20 +92,23 @@ export function analyzeBreakingChanges(
   }
 
   // Pattern 3: Common breaking change keywords in bullet points (more restrictive)
-  // Only match explicit breaking keywords, not just "deprecated" warnings
-  // Exclude markdown headers to avoid false positives
-  const breakingKeywordPatterns = [
-    /^[\s-*•]+(?!#).*\b(removed?|incompatible)\b.*$/gim,
-    /^[\s-*•]+(?!#).*\b(major\s+change|api\s+change)\b.*$/gim,
-    /^[\s-*•]+(?!#).*\b(no\s+longer\s+supports?)\b.*$/gim
-  ]
+  // Only apply this if we didn't find a dedicated section
+  if (!foundBreakingSection) {
+    const breakingKeywordPatterns = [
+      /^[\s-*•]+(?!#).*\b(removed?|incompatible)\b.*$/gim,
+      /^[\s-*•]+(?!#).*\b(major\s+change|api\s+change)\b.*$/gim,
+      /^[\s-*•]+(?!#).*\b(no\s+longer\s+supports?)\b.*$/gim
+    ]
 
-  for (const pattern of breakingKeywordPatterns) {
-    const keywordMatches = releaseNotes.match(pattern)
-    if (keywordMatches) {
-      for (const keywordMatch of keywordMatches) {
-        analysis.releaseNoteBreaks.push(keywordMatch.trim())
-        analysis.breakingChangeMarkers.push('Breaking change keyword detected')
+    for (const pattern of breakingKeywordPatterns) {
+      const keywordMatches = releaseNotes.match(pattern)
+      if (keywordMatches) {
+        for (const keywordMatch of keywordMatches) {
+          analysis.releaseNoteBreaks.push(keywordMatch.trim())
+          analysis.breakingChangeMarkers.push(
+            'Breaking change keyword detected'
+          )
+        }
       }
     }
   }
@@ -125,6 +139,9 @@ export function analyzeBreakingChanges(
   if (analysis.hasBreakingChanges) {
     core.info(
       `Breaking changes detected: ${analysis.breakingChangeMarkers.join(', ')}`
+    )
+    core.debug(
+      `Breaking change items: ${analysis.releaseNoteBreaks.join(', ')}`
     )
   } else {
     core.debug('No breaking changes detected')

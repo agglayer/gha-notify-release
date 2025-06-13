@@ -39,7 +39,17 @@ export function analyzeConfigChanges(releaseNotes?: string): ConfigAnalysis {
     `Analyzing release notes for config changes: ${releaseNotes.substring(0, 200)}...`
   )
 
-  // Pattern 1: Detect markdown links to config files
+  // Pattern 1: Look for dedicated Configuration sections first
+  const configSectionItems = findConfigurationSectionItems(releaseNotes)
+  for (const item of configSectionItems) {
+    analysis.configDiffs.push({
+      filename: 'Configuration change',
+      content: item,
+      type: 'mention'
+    })
+  }
+
+  // Pattern 2: Detect markdown links to config files
   const configLinkPattern =
     /\[([^\]]*(?:config|settings|\.env|\.json|\.yaml|\.yml|\.toml|\.ini|\.conf)[^\]]*)\]\(([^)]+)\)/gi
   let match
@@ -58,7 +68,7 @@ export function analyzeConfigChanges(releaseNotes?: string): ConfigAnalysis {
     })
   }
 
-  // Pattern 2: Detect code blocks that likely contain config content
+  // Pattern 3: Detect code blocks that likely contain config content
   const codeBlockPattern = /```[\w]*\s*\n([\s\S]*?)\n```/gi
   while ((match = codeBlockPattern.exec(releaseNotes)) !== null) {
     const blockContent = match[1]
@@ -75,7 +85,7 @@ export function analyzeConfigChanges(releaseNotes?: string): ConfigAnalysis {
     }
   }
 
-  // Pattern 3: Before/After config sections
+  // Pattern 4: Before/After config sections
   const beforeAfterPattern =
     /(?:before|old|previous)\s*:?\s*(```[\s\S]*?```)\s*(?:after|new|updated)\s*:?\s*(```[\s\S]*?```)/gi
   while ((match = beforeAfterPattern.exec(releaseNotes)) !== null) {
@@ -94,23 +104,25 @@ export function analyzeConfigChanges(releaseNotes?: string): ConfigAnalysis {
     }
   }
 
-  // Pattern 4: Bullet points mentioning config file changes (but not inside code blocks)
-  // Remove code blocks first to avoid matching content inside them
-  const releaseNotesWithoutCodeBlocks = releaseNotes.replace(
-    /```[\s\S]*?```/g,
-    ''
-  )
-  const configMentionPattern =
-    /^[\s]*[-*•]\s+.*(?:config|configuration|settings|\.env).*(?:changed?|updated?|modified|added|removed)/gim
-  const configMentions =
-    releaseNotesWithoutCodeBlocks.match(configMentionPattern)
-  if (configMentions) {
-    for (const mention of configMentions) {
-      analysis.configDiffs.push({
-        filename: 'Configuration mention',
-        content: mention.trim(),
-        type: 'mention'
-      })
+  // Pattern 5: Bullet points mentioning config file changes (but not inside code blocks)
+  // Only apply this if we didn't find dedicated config section items
+  if (configSectionItems.length === 0) {
+    const releaseNotesWithoutCodeBlocks = releaseNotes.replace(
+      /```[\s\S]*?```/g,
+      ''
+    )
+    const configMentionPattern =
+      /^[\s]*[-*•]\s+.*(?:config|configuration|settings|\.env).*(?:changed?|updated?|modified|added|removed)/gim
+    const configMentions =
+      releaseNotesWithoutCodeBlocks.match(configMentionPattern)
+    if (configMentions) {
+      for (const mention of configMentions) {
+        analysis.configDiffs.push({
+          filename: 'Configuration mention',
+          content: mention.trim(),
+          type: 'mention'
+        })
+      }
     }
   }
 
@@ -126,6 +138,52 @@ export function analyzeConfigChanges(releaseNotes?: string): ConfigAnalysis {
   }
 
   return analysis
+}
+
+/**
+ * Finds configuration items from dedicated configuration sections
+ */
+function findConfigurationSectionItems(releaseNotes: string): string[] {
+  const configItems: string[] = []
+  const lines = releaseNotes.split('\n')
+  let inConfigSection = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+
+    // Check if this line is a Configuration section header
+    // Matches: "## 📋 Configuration Updates", "### Config Changes", etc.
+    if (
+      /^#{1,4}\s*[📋⚙️🔧]*\s*config(?:uration)?\s+(?:updates?|changes?)\s*[📋⚙️🔧]*\s*:?\s*$/i.test(
+        line
+      )
+    ) {
+      inConfigSection = true
+      core.debug(`Found configuration section: ${line}`)
+      continue
+    }
+
+    // Check if we've hit another section header (stop processing this section)
+    if (inConfigSection && /^#{1,4}\s/.test(line)) {
+      inConfigSection = false
+      continue
+    }
+
+    // If we're in a config section and this is a bullet point, capture it
+    if (
+      inConfigSection &&
+      (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))
+    ) {
+      const cleanLine = line.replace(/^[-*•]\s*/, '').trim()
+      if (cleanLine) {
+        // Only add non-empty lines
+        configItems.push(cleanLine)
+        core.debug(`Found config item: ${cleanLine}`)
+      }
+    }
+  }
+
+  return configItems
 }
 
 /**
