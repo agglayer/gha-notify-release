@@ -1,7 +1,7 @@
 {
   "name": "gha-notify-release",
   "description": "GitHub Actions Notify Release",
-  "version": "v1.0.23",
+  "version": "v1.0.24",
   "author": "@sebastiendan",
   "type": "module",
   "private": true,

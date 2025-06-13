@@ -210,11 +210,11 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     timeZoneName: 'short'
   })
 
-  core.debug(`📋 Generating canvas content for ${release.repositoryName}`)
-  core.debug(
+  core.info(`📋 Generating canvas content for ${release.repositoryName}`)
+  core.info(
     `📋 Breaking analysis: ${JSON.stringify(release.breakingAnalysis, null, 2)}`
   )
-  core.debug(
+  core.info(
     `📋 Config analysis: ${JSON.stringify(release.configAnalysis, null, 2)}`
   )
 
@@ -236,14 +236,14 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     content += `⚠️ **BREAKING CHANGES DETECTED**\n\n`
 
     if (release.breakingAnalysis.releaseNoteBreaks.length > 0) {
-      core.debug(
+      core.info(
         `📋 Processing ${release.breakingAnalysis.releaseNoteBreaks.length} breaking changes`
       )
       for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
-        core.debug(`📋 Breaking change content: "${breakingChange}"`)
+        core.info(`📋 Breaking change content: "${breakingChange}"`)
         // Split by bullet points in case they're concatenated
         const items = splitBulletPoints(breakingChange)
-        core.debug(
+        core.info(
           `📋 Split into ${items.length} items: ${JSON.stringify(items)}`
         )
         for (const item of items) {
@@ -279,15 +279,15 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
 
     if (release.configAnalysis.configDiffs.length > 0) {
       content += `**Configuration Updates:**\n`
-      core.debug(
+      core.info(
         `📋 Processing ${release.configAnalysis.configDiffs.length} config diffs`
       )
       for (const diff of release.configAnalysis.configDiffs) {
-        core.debug(`📋 Config diff: ${JSON.stringify(diff)}`)
+        core.info(`📋 Config diff: ${JSON.stringify(diff)}`)
         if (diff.type === 'mention') {
           // Split the content in case it contains multiple bullet points
           const items = splitBulletPoints(diff.content)
-          core.debug(
+          core.info(
             `📋 Config content split into ${items.length} items: ${JSON.stringify(items)}`
           )
           for (const item of items) {
@@ -326,7 +326,7 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 • Automatically updated by the release notification system
 • Shows the same content as posted to the Slack channel`
 
-  core.debug(`📋 Generated canvas content length: ${content.length} characters`)
+  core.info(`📋 Generated canvas content length: ${content.length} characters`)
   return content
 }
 
@@ -334,25 +334,26 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
  * Splits content that might contain concatenated bullet points into individual items
  */
 function splitBulletPoints(content: string): string[] {
-  core.debug(`📋 splitBulletPoints input: "${content}"`)
+  core.info(`📋 splitBulletPoints input: "${content}"`)
 
   // Remove any existing bullet markers at the start
   let cleaned = content.replace(/^[-*•]\s*/, '').trim()
-  core.debug(`📋 After removing leading bullets: "${cleaned}"`)
+  core.info(`📋 After removing leading bullets: "${cleaned}"`)
 
   // If the content contains bullet markers within it, split by them
+  // Handle both "•" and " • " (space bullet space) patterns
   if (cleaned.includes('•')) {
     const result = cleaned
-      .split('•')
+      .split(/\s*•\s*/) // Split by bullet with optional spaces around it
       .map((item) => item.trim())
       .filter((item) => item.length > 0)
-    core.debug(`📋 Split by bullets, result: ${JSON.stringify(result)}`)
+    core.info(`📋 Split by bullets, result: ${JSON.stringify(result)}`)
     return result
   }
 
   // If no internal bullets, return as single item
   const result = [cleaned].filter((item) => item.length > 0)
-  core.debug(`📋 No internal bullets, result: ${JSON.stringify(result)}`)
+  core.info(`📋 No internal bullets, result: ${JSON.stringify(result)}`)
   return result
 }
 
