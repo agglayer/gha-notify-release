@@ -30,9 +30,6 @@ export async function updateRepositoryCanvas(
       return false
     }
 
-    // Ensure "Latest releases" folder exists
-    const folderId = await ensureLatestReleasesFolder(client, channelId)
-
     // Look for existing canvas for this repository
     const existingCanvasId = await findRepositoryCanvas(
       client,
@@ -49,7 +46,7 @@ export async function updateRepositoryCanvas(
     } else {
       // Create new canvas for this repository
       core.info(`🎨 Creating new canvas for ${release.repositoryName}`)
-      await createRepositoryCanvas(client, channelId, release, folderId)
+      await createRepositoryCanvas(client, channelId, release)
     }
 
     core.info(
@@ -60,31 +57,6 @@ export async function updateRepositoryCanvas(
     const errorMessage = error?.message || error
     core.error(`❌ Failed to update repository canvas: ${errorMessage}`)
     return false
-  }
-}
-
-/**
- * Ensures the "Latest releases" folder exists in the channel
- */
-async function ensureLatestReleasesFolder(
-  client: WebClient,
-  channelId: string
-): Promise<string | undefined> {
-  try {
-    core.info(
-      `📁 Ensuring "Latest releases" folder exists in channel ${channelId}`
-    )
-
-    // Note: Slack doesn't have a direct folder API for channels
-    // Folders are typically managed through the UI
-    // We'll create canvases without folder organization for now
-    // and suggest manual folder organization to users
-
-    core.info(`📁 Folder management is handled manually in Slack UI`)
-    return undefined
-  } catch (error) {
-    core.warning(`Could not manage folder: ${error}`)
-    return undefined
   }
 }
 
@@ -144,8 +116,7 @@ async function findRepositoryCanvas(
 async function createRepositoryCanvas(
   client: WebClient,
   channelId: string,
-  release: RepositoryRelease,
-  folderId?: string
+  release: RepositoryRelease
 ): Promise<string> {
   try {
     // Generate canvas title and content
@@ -236,6 +207,9 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     timeZoneName: 'short'
   })
 
+  // Parse the slack message to extract the formatted sections
+  const cleanContent = parseSlackMessageForCanvas(release.slackMessageContent)
+
   return `# 📦 ${release.repositoryName}
 ## Latest Release: ${release.version}
 
@@ -243,9 +217,7 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
 
 ---
 
-## 📢 Release Notification
-
-${release.slackMessageContent}
+${cleanContent}
 
 ---
 
@@ -254,8 +226,56 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 **📝 About this canvas:**
 - Contains the latest release information for \`${release.repositoryName}\`
 - Automatically updated by the release notification system
-- Shows the same content as posted to the Slack channel
-- Organized in the "Latest releases" section for easy access`
+- Shows the same content as posted to the Slack channel`
+}
+
+/**
+ * Parses Slack message content and formats it cleanly for canvas display
+ */
+function parseSlackMessageForCanvas(slackMessage: string): string {
+  // Remove the title line (first line that contains the release type and repository)
+  const lines = slackMessage.split('\n')
+  let contentLines: string[] = []
+  let skipFirstLine = true
+
+  for (const line of lines) {
+    // Skip the first line that contains the main release announcement
+    if (skipFirstLine && line.includes('🚀') && line.includes(':')) {
+      skipFirstLine = false
+      continue
+    }
+    skipFirstLine = false
+
+    // Skip the duplicate release link and timestamp lines at the end
+    if (line.includes('🔗 View Release') || line.includes('Released at ')) {
+      continue
+    }
+
+    // Skip empty lines at the beginning
+    if (contentLines.length === 0 && line.trim() === '') {
+      continue
+    }
+
+    contentLines.push(line)
+  }
+
+  // Join and clean up the content
+  let cleanContent = contentLines.join('\n').trim()
+
+  // Fix bullet point formatting issues
+  cleanContent = cleanContent
+    // Handle concatenated bullet points (• text • text)
+    .replace(/•\s*([^•\n]+)\s*•/g, '• $1\n•')
+    // Ensure section headers have proper spacing
+    .replace(/(\*[A-Z\s]+\*)\s*•/g, '$1\n• ')
+    // Fix missing newlines between sections
+    .replace(/(\*\*[^*]+\*\*:?)\s*([^*\n])/g, '$1\n$2')
+    // Clean up multiple consecutive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    // Ensure proper spacing after section headers
+    .replace(/(\*[^*]+\*)\s*(\w)/g, '$1\n\n$2')
+
+  return cleanContent
 }
 
 /**

@@ -1,7 +1,7 @@
 name: 'GitHub Release Slack Notification'
 description:
   'Automatically notify Slack channels of new GitHub releases with breaking
-  change detection and per-repository canvas management'
+  change detection and individual repository canvases'
 author: 'agglayer'
 
 # Define your inputs here.
@@ -20,7 +20,7 @@ inputs:
     required: false
     default: ''
   maintain-releases-list:
-    description: 'Whether to maintain per-repository canvases with latest release information'
+    description: 'Whether to create/update individual repository canvases with latest release information'
     required: false
     default: 'true'
 
