@@ -377,51 +377,6 @@ async function discoverChannelCanvas(
     core.warning(`❌ files.list failed with exception: ${error}`)
   }
 
-  // Method 3: Try canvases.list API if available (but only for discovery, not creation)
-  try {
-    core.info(
-      `🔍 Method 3: Checking canvases.list API for channel ${channelId}`
-    )
-
-    const listResult = await (client as any).canvases.list({
-      limit: 50
-    })
-
-    core.info(
-      `📋 canvases.list response: ok=${listResult.ok}, canvases_count=${listResult.canvases?.length || 0}`
-    )
-
-    if (listResult.ok && listResult.canvases) {
-      core.info(`📋 Found ${listResult.canvases.length} canvases in workspace`)
-
-      // Look for a canvas that might belong to this channel
-      for (const canvas of listResult.canvases) {
-        core.info(
-          `📋 Checking canvas: id=${canvas.id || canvas.canvas_id}, channel_id=${canvas.channel_id}, channel=${canvas.channel}`
-        )
-
-        // Check if this canvas is associated with our channel
-        if (
-          canvas.channel_id === channelId ||
-          canvas.channel === channelId ||
-          (canvas.properties && canvas.properties.channel_id === channelId)
-        ) {
-          core.info(
-            `✅ Found existing canvas via canvases.list: ${canvas.id || canvas.canvas_id}`
-          )
-          return canvas.id || canvas.canvas_id
-        }
-      }
-      core.info(`📋 No canvases found associated with channel ${channelId}`)
-    } else {
-      if (!listResult.ok) {
-        core.warning(`❌ canvases.list failed: ${listResult.error}`)
-      }
-    }
-  } catch (error: any) {
-    core.warning(`❌ canvases.list failed with exception: ${error}`)
-  }
-
   core.info(
     `📋 Canvas discovery completed: No existing canvas found for channel ${channelId}`
   )
@@ -442,10 +397,47 @@ async function loadReleasesFromCanvas(
     const result = await client.files.info({ file: canvasId })
 
     if (result.ok && result.file) {
-      // Try to extract releases from canvas markdown content
-      const content = (result.file as any).plain_text || ''
+      const file = result.file as any
+
+      // Log all available fields to understand what's available
+      core.info(`📋 Canvas file info received:`)
+      core.info(`📋 - File type: ${file.filetype}`)
+      core.info(`📋 - File name: ${file.name}`)
+      core.info(`📋 - File size: ${file.size}`)
+      core.info(`📋 - Available fields: ${Object.keys(file).join(', ')}`)
+
+      // Try multiple possible content fields
+      const possibleContentFields = [
+        'plain_text',
+        'content',
+        'preview',
+        'preview_plain_text',
+        'edit_link',
+        'canvas_template'
+      ]
+
+      let content = ''
+      let contentSource = 'none'
+
+      for (const field of possibleContentFields) {
+        if (file[field]) {
+          content = file[field]
+          contentSource = field
+          break
+        }
+      }
+
+      core.info(`📋 Canvas content source: ${contentSource}`)
       core.info(`📋 Canvas content length: ${content.length} characters`)
-      core.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`)
+
+      if (content.length > 0) {
+        core.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`)
+      } else {
+        core.warning(
+          `📋 Canvas content is empty - this might be a new canvas or content isn't accessible via files.info`
+        )
+        core.debug(`📋 Full file object: ${JSON.stringify(file, null, 2)}`)
+      }
 
       const parsedReleases = parseReleasesFromMarkdown(content)
       core.info(
