@@ -56746,9 +56746,23 @@ function analyzeBreakingChanges(releaseNotes) {
             (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
             const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
             if (cleanLine) {
-                // Only add non-empty lines
-                analysis.releaseNoteBreaks.push(cleanLine);
-                coreExports.debug(`Found breaking change item: ${cleanLine}`);
+                // Check if this line contains multiple bullet points concatenated with " • "
+                if (cleanLine.includes(' • ')) {
+                    // Split by the bullet separator and add each item individually
+                    const splitItems = cleanLine.split(' • ');
+                    for (const item of splitItems) {
+                        const cleanItem = item.trim();
+                        if (cleanItem) {
+                            analysis.releaseNoteBreaks.push(cleanItem);
+                            coreExports.debug(`Found breaking change item (split): ${cleanItem}`);
+                        }
+                    }
+                }
+                else {
+                    // Single item on this line
+                    analysis.releaseNoteBreaks.push(cleanLine);
+                    coreExports.debug(`Found breaking change item: ${cleanLine}`);
+                }
             }
         }
     }
@@ -56947,9 +56961,23 @@ function findConfigurationSectionItems(releaseNotes) {
             (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
             const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
             if (cleanLine) {
-                // Only add non-empty lines
-                configItems.push(cleanLine);
-                coreExports.debug(`Found config item: ${cleanLine}`);
+                // Check if this line contains multiple bullet points concatenated with " • "
+                if (cleanLine.includes(' • ')) {
+                    // Split by the bullet separator and add each item individually
+                    const splitItems = cleanLine.split(' • ');
+                    for (const item of splitItems) {
+                        const cleanItem = item.trim();
+                        if (cleanItem) {
+                            configItems.push(cleanItem);
+                            coreExports.debug(`Found config item (split): ${cleanItem}`);
+                        }
+                    }
+                }
+                else {
+                    // Single item on this line
+                    configItems.push(cleanLine);
+                    coreExports.debug(`Found config item: ${cleanLine}`);
+                }
             }
         }
     }
@@ -57070,9 +57098,23 @@ function findE2ESectionItems(releaseNotes) {
             (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
             const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
             if (cleanLine) {
-                // Only add non-empty lines
-                e2eItems.push(cleanLine);
-                coreExports.debug(`Found E2E item: ${cleanLine}`);
+                // Check if this line contains multiple bullet points concatenated with " • "
+                if (cleanLine.includes(' • ')) {
+                    // Split by the bullet separator and add each item individually
+                    const splitItems = cleanLine.split(' • ');
+                    for (const item of splitItems) {
+                        const cleanItem = item.trim();
+                        if (cleanItem) {
+                            e2eItems.push(cleanItem);
+                            coreExports.debug(`Found E2E item (split): ${cleanItem}`);
+                        }
+                    }
+                }
+                else {
+                    // Single item on this line
+                    e2eItems.push(cleanLine);
+                    coreExports.debug(`Found E2E item: ${cleanLine}`);
+                }
             }
         }
     }
@@ -57541,22 +57583,15 @@ function generateRepositoryCanvasContent(release) {
             coreExports.info(`📋 Processing ${release.breakingAnalysis.releaseNoteBreaks.length} breaking changes`);
             for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
                 coreExports.info(`📋 Breaking change content: "${breakingChange}"`);
-                // Split by bullet points in case they're concatenated
-                const items = splitBulletPoints(breakingChange);
-                coreExports.info(`📋 Split into ${items.length} items: ${JSON.stringify(items)}`);
-                for (const item of items) {
-                    content += `• ${item}\n`;
-                }
+                // Parsers now handle splitting at source, so each item should be individual
+                content += `• ${breakingChange}\n`;
             }
             content += '\n';
         }
         if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
             for (const commitBreak of release.breakingAnalysis
                 .conventionalCommitBreaks) {
-                const items = splitBulletPoints(commitBreak);
-                for (const item of items) {
-                    content += `• ${item}\n`;
-                }
+                content += `• ${commitBreak}\n`;
             }
             content += '\n';
         }
@@ -57577,12 +57612,8 @@ function generateRepositoryCanvasContent(release) {
             for (const diff of release.configAnalysis.configDiffs) {
                 coreExports.info(`📋 Config diff: ${JSON.stringify(diff)}`);
                 if (diff.type === 'mention') {
-                    // Split the content in case it contains multiple bullet points
-                    const items = splitBulletPoints(diff.content);
-                    coreExports.info(`📋 Config content split into ${items.length} items: ${JSON.stringify(items)}`);
-                    for (const item of items) {
-                        content += `• ${item}\n`;
-                    }
+                    // Parsers now handle splitting at source, so each item should be individual
+                    content += `• ${diff.content}\n`;
                 }
                 else {
                     content += `• ${diff.filename} - See release notes for details\n`;
@@ -57614,48 +57645,6 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 • Shows the same content as posted to the Slack channel`;
     coreExports.info(`📋 Generated canvas content length: ${content.length} characters`);
     return content;
-}
-/**
- * Splits content that might contain concatenated bullet points into individual items
- */
-function splitBulletPoints(content) {
-    coreExports.info(`📋 splitBulletPoints input: "${content}"`);
-    if (!content || content.trim().length === 0) {
-        return [];
-    }
-    // Remove any leading bullet marker first
-    let text = content.replace(/^[-*•]\s*/, '').trim();
-    coreExports.info(`📋 After removing leading bullet: "${text}"`);
-    // The content appears to be concatenated with " • " (space-bullet-space)
-    // Split by this exact pattern
-    let parts;
-    if (text.includes(' • ')) {
-        parts = text.split(' • ');
-        coreExports.info(`📋 Split by ' • ' pattern: ${JSON.stringify(parts)}`);
-    }
-    else if (text.includes('• ')) {
-        parts = text.split('• ');
-        coreExports.info(`📋 Split by '• ' pattern: ${JSON.stringify(parts)}`);
-    }
-    else if (text.includes(' •')) {
-        parts = text.split(' •');
-        coreExports.info(`📋 Split by ' •' pattern: ${JSON.stringify(parts)}`);
-    }
-    else {
-        parts = [text];
-        coreExports.info(`📋 No bullet patterns found, keeping as single item: ${JSON.stringify(parts)}`);
-    }
-    // Clean up each part
-    const result = parts
-        .map((part) => part.trim())
-        .filter((part) => part.length > 0)
-        .map((part) => {
-        // Remove any remaining bullet markers
-        return part.replace(/^[-*•]\s*/, '').trim();
-    })
-        .filter((part) => part.length > 0);
-    coreExports.info(`📋 Final cleaned result: ${JSON.stringify(result)}`);
-    return result;
 }
 /**
  * Gets the channel ID from channel name or returns the ID if already provided

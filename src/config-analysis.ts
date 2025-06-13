@@ -176,9 +176,22 @@ function findConfigurationSectionItems(releaseNotes: string): string[] {
     ) {
       const cleanLine = line.replace(/^[-*•]\s*/, '').trim()
       if (cleanLine) {
-        // Only add non-empty lines
-        configItems.push(cleanLine)
-        core.debug(`Found config item: ${cleanLine}`)
+        // Check if this line contains multiple bullet points concatenated with " • "
+        if (cleanLine.includes(' • ')) {
+          // Split by the bullet separator and add each item individually
+          const splitItems = cleanLine.split(' • ')
+          for (const item of splitItems) {
+            const cleanItem = item.trim()
+            if (cleanItem) {
+              configItems.push(cleanItem)
+              core.debug(`Found config item (split): ${cleanItem}`)
+            }
+          }
+        } else {
+          // Single item on this line
+          configItems.push(cleanLine)
+          core.debug(`Found config item: ${cleanLine}`)
+        }
       }
     }
   }
