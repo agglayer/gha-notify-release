@@ -3,15 +3,9 @@ import * as github from '@actions/github'
 import { WebClient } from '@slack/web-api'
 import { sendReleaseNotification } from './slack.js'
 import { updateRepositoryCanvas } from './releases-list.js'
-import {
-  analyzeBreakingChanges,
-  formatBreakingChangesForSlack
-} from './breaking-changes.js'
-import {
-  analyzeConfigChanges,
-  formatConfigChangesForSlack
-} from './config-analysis.js'
-import { analyzeE2ETests, formatE2ETestsForSlack } from './e2e-analysis.js'
+import { analyzeBreakingChanges } from './breaking-changes.js'
+import { analyzeConfigChanges } from './config-analysis.js'
+import { analyzeE2ETests } from './e2e-analysis.js'
 
 /**
  * The main function for the action.
@@ -70,18 +64,6 @@ export async function run(): Promise<void> {
     if (maintainReleasesList) {
       const slack = new WebClient(slackBotToken)
 
-      // Generate the complete Slack message content for storage
-      const slackMessageContent = generateSlackMessageContent({
-        version: releaseVersion,
-        releaseUrl: releaseUrl || undefined,
-        releaseNotes: releaseNotes || undefined,
-        customMessage: customMessage || undefined,
-        repositoryName,
-        breakingAnalysis,
-        configAnalysis,
-        e2eAnalysis
-      })
-
       repositoryCanvasUpdated = await updateRepositoryCanvas(
         slack,
         slackChannel,
@@ -89,7 +71,10 @@ export async function run(): Promise<void> {
           repositoryName,
           version: releaseVersion,
           releaseUrl: releaseUrl || undefined,
-          slackMessageContent
+          customMessage: customMessage || undefined,
+          breakingAnalysis,
+          configAnalysis,
+          e2eAnalysis
         }
       )
 
@@ -118,82 +103,4 @@ export async function run(): Promise<void> {
       core.setFailed('An unknown error occurred')
     }
   }
-}
-
-/**
- * Generates the complete Slack message content for storage in canvas
- */
-function generateSlackMessageContent(params: {
-  version: string
-  releaseUrl?: string
-  releaseNotes?: string
-  customMessage?: string
-  repositoryName: string
-  breakingAnalysis: any
-  configAnalysis: any
-  e2eAnalysis: any
-}): string {
-  const {
-    version,
-    releaseUrl,
-    customMessage,
-    repositoryName,
-    breakingAnalysis,
-    configAnalysis,
-    e2eAnalysis
-  } = params
-
-  // Choose appropriate emoji and type based on changes (priority: breaking > config > e2e > normal)
-  let releaseEmoji = '🚀'
-  let releaseType = '*New Release*'
-
-  if (breakingAnalysis.hasBreakingChanges) {
-    releaseEmoji = '⚠️🚀'
-    releaseType = '*BREAKING RELEASE*'
-  } else if (configAnalysis.hasConfigChanges) {
-    releaseEmoji = '⚙️🚀'
-    releaseType = '*CONFIG UPDATE*'
-  } else if (e2eAnalysis.hasE2ETests) {
-    releaseEmoji = '🧪🚀'
-    releaseType = '*E2E WORKFLOW RELEASE*'
-  }
-
-  // Build the main message with repository name first
-  let message = `${releaseEmoji} ${releaseType}: \`${repositoryName}\` ${version}`
-
-  if (customMessage) {
-    message += `\n\n${customMessage}`
-  }
-
-  // Add breaking changes section if found
-  const breakingChangesText = formatBreakingChangesForSlack(breakingAnalysis)
-  if (breakingChangesText) {
-    message += breakingChangesText
-  }
-
-  // Add config changes section if found
-  const configChangesText = formatConfigChangesForSlack(configAnalysis)
-  if (configChangesText) {
-    if (breakingChangesText) {
-      message += '\n' // Add extra spacing after breaking changes
-    }
-    message += configChangesText
-  }
-
-  // Add e2e test section if found
-  const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis)
-  if (e2eTestsText) {
-    if (breakingChangesText || configChangesText) {
-      message += '\n' // Add extra spacing after previous sections
-    }
-    message += e2eTestsText
-  }
-
-  if (releaseUrl) {
-    message += `\n\n🔗 [View Release](${releaseUrl})`
-  }
-
-  message += `\n\n_Released at ${new Date().toISOString()}_`
-
-  return message
 }
