@@ -57599,7 +57599,7 @@ async function run() {
     try {
         // Get inputs from the workflow
         const slackBotToken = coreExports.getInput('slack-bot-token', { required: true });
-        const slackChannel = coreExports.getInput('slack-channel', { required: true });
+        const slackChannel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
         const customMessage = coreExports.getInput('custom-message');
         const maintainReleasesList = coreExports.getBooleanInput('maintain-releases-list');
         // Get release information from GitHub context

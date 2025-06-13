@@ -21,7 +21,7 @@ export async function run(): Promise<void> {
   try {
     // Get inputs from the workflow
     const slackBotToken = core.getInput('slack-bot-token', { required: true })
-    const slackChannel = core.getInput('slack-channel', { required: true })
+    const slackChannel = core.getInput('slack-channel') || 'C090TACJ9KN'
     const customMessage = core.getInput('custom-message')
     const maintainReleasesList = core.getBooleanInput('maintain-releases-list')
 
