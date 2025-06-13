@@ -56721,20 +56721,22 @@ function analyzeBreakingChanges(releaseNotes) {
         analysis.conventionalCommitBreaks.push(`${commitType}!: ${description}`);
         analysis.breakingChangeMarkers.push(`Conventional commit breaking change: ${commitType}!`);
     }
-    // Pattern 2: Explicit "BREAKING CHANGE" or "BREAKING CHANGES" sections
-    // Look for section headers followed by bullet point content
+    // Pattern 2: Look for dedicated Breaking Changes sections
+    // More flexible pattern to handle emojis and different formatting
     const lines = releaseNotes.split('\n');
     let inBreakingSection = false;
     let foundBreakingSection = false;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        // Check if this line is a BREAKING CHANGES header
-        if (/^#{1,4}\s*BREAKING\s+CHANGES?\s*:?\s*$/i.test(line)) {
+        // Check if this line is a Breaking Changes header (with flexible emoji and text matching)
+        // Matches: "## ⚠️ Breaking Changes", "### BREAKING CHANGES", "# Breaking Change:", etc.
+        if (/^#{1,4}\s*[⚠️🚨💥]*\s*BREAKING\s+CHANGES?\s*[⚠️🚨💥]*\s*:?\s*$/i.test(line)) {
             inBreakingSection = true;
             foundBreakingSection = true;
+            coreExports.debug(`Found breaking changes section: ${line}`);
             continue;
         }
-        // Check if we've hit another section header
+        // Check if we've hit another section header (stop processing this section)
         if (inBreakingSection && /^#{1,4}\s/.test(line)) {
             inBreakingSection = false;
             continue;
@@ -56742,26 +56744,32 @@ function analyzeBreakingChanges(releaseNotes) {
         // If we're in a breaking section and this is a bullet point, capture it
         if (inBreakingSection &&
             (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
-            analysis.releaseNoteBreaks.push(line);
+            const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
+            if (cleanLine) {
+                // Only add non-empty lines
+                analysis.releaseNoteBreaks.push(cleanLine);
+                coreExports.debug(`Found breaking change item: ${cleanLine}`);
+            }
         }
     }
     if (foundBreakingSection && analysis.releaseNoteBreaks.length > 0) {
         analysis.breakingChangeMarkers.push('BREAKING CHANGE section found');
     }
     // Pattern 3: Common breaking change keywords in bullet points (more restrictive)
-    // Only match explicit breaking keywords, not just "deprecated" warnings
-    // Exclude markdown headers to avoid false positives
-    const breakingKeywordPatterns = [
-        /^[\s-*•]+(?!#).*\b(removed?|incompatible)\b.*$/gim,
-        /^[\s-*•]+(?!#).*\b(major\s+change|api\s+change)\b.*$/gim,
-        /^[\s-*•]+(?!#).*\b(no\s+longer\s+supports?)\b.*$/gim
-    ];
-    for (const pattern of breakingKeywordPatterns) {
-        const keywordMatches = releaseNotes.match(pattern);
-        if (keywordMatches) {
-            for (const keywordMatch of keywordMatches) {
-                analysis.releaseNoteBreaks.push(keywordMatch.trim());
-                analysis.breakingChangeMarkers.push('Breaking change keyword detected');
+    // Only apply this if we didn't find a dedicated section
+    if (!foundBreakingSection) {
+        const breakingKeywordPatterns = [
+            /^[\s-*•]+(?!#).*\b(removed?|incompatible)\b.*$/gim,
+            /^[\s-*•]+(?!#).*\b(major\s+change|api\s+change)\b.*$/gim,
+            /^[\s-*•]+(?!#).*\b(no\s+longer\s+supports?)\b.*$/gim
+        ];
+        for (const pattern of breakingKeywordPatterns) {
+            const keywordMatches = releaseNotes.match(pattern);
+            if (keywordMatches) {
+                for (const keywordMatch of keywordMatches) {
+                    analysis.releaseNoteBreaks.push(keywordMatch.trim());
+                    analysis.breakingChangeMarkers.push('Breaking change keyword detected');
+                }
             }
         }
     }
@@ -56786,6 +56794,7 @@ function analyzeBreakingChanges(releaseNotes) {
             analysis.breakingChangeMarkers.length > 0;
     if (analysis.hasBreakingChanges) {
         coreExports.info(`Breaking changes detected: ${analysis.breakingChangeMarkers.join(', ')}`);
+        coreExports.debug(`Breaking change items: ${analysis.releaseNoteBreaks.join(', ')}`);
     }
     else {
         coreExports.debug('No breaking changes detected');
@@ -56835,7 +56844,16 @@ function analyzeConfigChanges(releaseNotes) {
         return analysis;
     }
     coreExports.debug(`Analyzing release notes for config changes: ${releaseNotes.substring(0, 200)}...`);
-    // Pattern 1: Detect markdown links to config files
+    // Pattern 1: Look for dedicated Configuration sections first
+    const configSectionItems = findConfigurationSectionItems(releaseNotes);
+    for (const item of configSectionItems) {
+        analysis.configDiffs.push({
+            filename: 'Configuration change',
+            content: item,
+            type: 'mention'
+        });
+    }
+    // Pattern 2: Detect markdown links to config files
     const configLinkPattern = /\[([^\]]*(?:config|settings|\.env|\.json|\.yaml|\.yml|\.toml|\.ini|\.conf)[^\]]*)\]\(([^)]+)\)/gi;
     let match;
     while ((match = configLinkPattern.exec(releaseNotes)) !== null) {
@@ -56849,7 +56867,7 @@ function analyzeConfigChanges(releaseNotes) {
             filename: filename
         });
     }
-    // Pattern 2: Detect code blocks that likely contain config content
+    // Pattern 3: Detect code blocks that likely contain config content
     const codeBlockPattern = /```[\w]*\s*\n([\s\S]*?)\n```/gi;
     while ((match = codeBlockPattern.exec(releaseNotes)) !== null) {
         const blockContent = match[1];
@@ -56863,7 +56881,7 @@ function analyzeConfigChanges(releaseNotes) {
             });
         }
     }
-    // Pattern 3: Before/After config sections
+    // Pattern 4: Before/After config sections
     const beforeAfterPattern = /(?:before|old|previous)\s*:?\s*(```[\s\S]*?```)\s*(?:after|new|updated)\s*:?\s*(```[\s\S]*?```)/gi;
     while ((match = beforeAfterPattern.exec(releaseNotes)) !== null) {
         const beforeContent = match[1];
@@ -56877,18 +56895,20 @@ function analyzeConfigChanges(releaseNotes) {
             });
         }
     }
-    // Pattern 4: Bullet points mentioning config file changes (but not inside code blocks)
-    // Remove code blocks first to avoid matching content inside them
-    const releaseNotesWithoutCodeBlocks = releaseNotes.replace(/```[\s\S]*?```/g, '');
-    const configMentionPattern = /^[\s]*[-*•]\s+.*(?:config|configuration|settings|\.env).*(?:changed?|updated?|modified|added|removed)/gim;
-    const configMentions = releaseNotesWithoutCodeBlocks.match(configMentionPattern);
-    if (configMentions) {
-        for (const mention of configMentions) {
-            analysis.configDiffs.push({
-                filename: 'Configuration mention',
-                content: mention.trim(),
-                type: 'mention'
-            });
+    // Pattern 5: Bullet points mentioning config file changes (but not inside code blocks)
+    // Only apply this if we didn't find dedicated config section items
+    if (configSectionItems.length === 0) {
+        const releaseNotesWithoutCodeBlocks = releaseNotes.replace(/```[\s\S]*?```/g, '');
+        const configMentionPattern = /^[\s]*[-*•]\s+.*(?:config|configuration|settings|\.env).*(?:changed?|updated?|modified|added|removed)/gim;
+        const configMentions = releaseNotesWithoutCodeBlocks.match(configMentionPattern);
+        if (configMentions) {
+            for (const mention of configMentions) {
+                analysis.configDiffs.push({
+                    filename: 'Configuration mention',
+                    content: mention.trim(),
+                    type: 'mention'
+                });
+            }
         }
     }
     analysis.hasConfigChanges =
@@ -56900,6 +56920,40 @@ function analyzeConfigChanges(releaseNotes) {
         coreExports.debug('No config changes detected');
     }
     return analysis;
+}
+/**
+ * Finds configuration items from dedicated configuration sections
+ */
+function findConfigurationSectionItems(releaseNotes) {
+    const configItems = [];
+    const lines = releaseNotes.split('\n');
+    let inConfigSection = false;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        // Check if this line is a Configuration section header
+        // Matches: "## 📋 Configuration Updates", "### Config Changes", etc.
+        if (/^#{1,4}\s*[📋⚙️🔧]*\s*config(?:uration)?\s+(?:updates?|changes?)\s*[📋⚙️🔧]*\s*:?\s*$/i.test(line)) {
+            inConfigSection = true;
+            coreExports.debug(`Found configuration section: ${line}`);
+            continue;
+        }
+        // Check if we've hit another section header (stop processing this section)
+        if (inConfigSection && /^#{1,4}\s/.test(line)) {
+            inConfigSection = false;
+            continue;
+        }
+        // If we're in a config section and this is a bullet point, capture it
+        if (inConfigSection &&
+            (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
+            const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
+            if (cleanLine) {
+                // Only add non-empty lines
+                configItems.push(cleanLine);
+                coreExports.debug(`Found config item: ${cleanLine}`);
+            }
+        }
+    }
+    return configItems;
 }
 /**
  * Extracts config filename from text or URL
@@ -56971,15 +57025,58 @@ function analyzeE2ETests(releaseNotes) {
         };
     }
     coreExports.debug('Analyzing release notes for e2e workflow references');
+    // First, look for dedicated E2E sections
+    const e2eSectionItems = findE2ESectionItems(releaseNotes);
+    // Then, find workflow links throughout the document
     const workflowLinks = findE2EWorkflowLinks(releaseNotes);
-    const hasE2ETests = workflowLinks.length > 0;
+    // Combine both methods - if we found dedicated E2E section items, that indicates E2E tests
+    const hasE2ETests = workflowLinks.length > 0 || e2eSectionItems.length > 0;
     if (hasE2ETests) {
-        coreExports.info(`Found ${workflowLinks.length} e2e workflow links`);
+        if (workflowLinks.length > 0) {
+            coreExports.info(`Found ${workflowLinks.length} e2e workflow links`);
+        }
+        if (e2eSectionItems.length > 0) {
+            coreExports.info(`Found ${e2eSectionItems.length} e2e section items`);
+        }
     }
     return {
         hasE2ETests,
         e2eWorkflowLinks: workflowLinks
     };
+}
+/**
+ * Finds E2E items from dedicated E2E testing sections
+ */
+function findE2ESectionItems(releaseNotes) {
+    const e2eItems = [];
+    const lines = releaseNotes.split('\n');
+    let inE2ESection = false;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        // Check if this line is an E2E section header
+        // Matches: "## 🧪 E2E Testing", "### Testing & Validation", "# End-to-End Tests", etc.
+        if (/^#{1,4}\s*[🧪🔬⚡]*\s*(?:e2e|end.to.end|testing|validation)\s*(?:testing|tests|workflows?)?\s*[🧪🔬⚡]*\s*:?\s*$/i.test(line)) {
+            inE2ESection = true;
+            coreExports.debug(`Found E2E section: ${line}`);
+            continue;
+        }
+        // Check if we've hit another section header (stop processing this section)
+        if (inE2ESection && /^#{1,4}\s/.test(line)) {
+            inE2ESection = false;
+            continue;
+        }
+        // If we're in an E2E section and this is a bullet point, capture it
+        if (inE2ESection &&
+            (line.startsWith('-') || line.startsWith('*') || line.startsWith('•'))) {
+            const cleanLine = line.replace(/^[-*•]\s*/, '').trim();
+            if (cleanLine) {
+                // Only add non-empty lines
+                e2eItems.push(cleanLine);
+                coreExports.debug(`Found E2E item: ${cleanLine}`);
+            }
+        }
+    }
+    return e2eItems;
 }
 /**
  * Finds GitHub Actions workflow links related to e2e testing
@@ -57556,12 +57653,23 @@ async function discoverChannelCanvas(client, channelId) {
  */
 async function loadReleasesFromCanvas(client, canvasId) {
     try {
+        coreExports.info(`📋 Loading existing releases from canvas ${canvasId}`);
         // Get canvas content using files.info
         const result = await client.files.info({ file: canvasId });
         if (result.ok && result.file) {
             // Try to extract releases from canvas markdown content
             const content = result.file.plain_text || '';
-            return parseReleasesFromMarkdown(content);
+            coreExports.info(`📋 Canvas content length: ${content.length} characters`);
+            coreExports.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`);
+            const parsedReleases = parseReleasesFromMarkdown(content);
+            coreExports.info(`📋 Parsed ${parsedReleases.length} existing releases from canvas`);
+            if (parsedReleases.length > 0) {
+                coreExports.debug(`📋 First parsed release: ${JSON.stringify(parsedReleases[0])}`);
+            }
+            return parsedReleases;
+        }
+        else {
+            coreExports.warning(`Canvas files.info failed: ok=${result.ok}, error=${result.error}`);
         }
     }
     catch (error) {
@@ -57575,17 +57683,24 @@ async function loadReleasesFromCanvas(client, canvasId) {
 function parseReleasesFromMarkdown(content) {
     const releases = [];
     try {
+        coreExports.debug(`📋 Parsing markdown content for releases...`);
         // Look for repository sections like ### repo/name
         const repoSections = content.split(/### ([^#\n]+)/);
+        coreExports.debug(`📋 Found ${Math.floor(repoSections.length / 2)} repository sections`);
         for (let i = 1; i < repoSections.length; i += 2) {
             const repositoryName = repoSections[i].trim();
             const sectionContent = repoSections[i + 1];
+            coreExports.debug(`📋 Processing repository: ${repositoryName}`);
+            coreExports.debug(`📋 Section content length: ${sectionContent?.length || 0}`);
             // Look for release entries like - 🚀 **[v1.2.3](url)** - Jan 15, 2024
             const releaseMatches = sectionContent.matchAll(/- ([🚀⚠️⚙️🧪]+) \*\*\[([^\]]+)\]\([^)]+\)\*\* - ([^(]+)(?:\([^)]*\))?/g);
+            let matchCount = 0;
             for (const match of releaseMatches) {
+                matchCount++;
                 const emoji = match[1];
                 const version = match[2];
                 const releaseDate = match[3].trim();
+                coreExports.debug(`📋 Found release: ${version} (${emoji}) on ${releaseDate}`);
                 // Determine change type from emoji
                 let changeType = 'normal';
                 if (emoji.includes('⚠️'))
@@ -57604,7 +57719,9 @@ function parseReleasesFromMarkdown(content) {
                     repositoryName
                 });
             }
+            coreExports.debug(`📋 Found ${matchCount} releases for ${repositoryName}`);
         }
+        coreExports.info(`📋 Successfully parsed ${releases.length} total releases from canvas`);
     }
     catch (error) {
         coreExports.warning(`Error parsing releases from canvas content: ${error}`);
