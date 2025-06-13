@@ -57292,43 +57292,78 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         let existingCanvasId;
         coreExports.info(`🔍 Starting aggressive canvas discovery for channel ${channelId}`);
         // Attempt 1: Standard discovery
+        coreExports.info(`🔍 Discovery Attempt 1: Standard discovery`);
         existingCanvasId = await discoverChannelCanvas(client, channelId);
         if (!existingCanvasId) {
-            coreExports.info(`🔍 First discovery attempt failed, trying with delay...`);
+            coreExports.info(`🔍 Discovery Attempt 2: Retry with delay (canvas creation might need time to propagate)`);
             // Attempt 2: Wait and try again (canvas creation might need time to propagate)
             await new Promise((resolve) => setTimeout(resolve, 2000));
             existingCanvasId = await discoverChannelCanvas(client, channelId);
         }
         if (!existingCanvasId) {
-            coreExports.info(`🔍 Second discovery attempt failed, trying files.list approach...`);
-            // Attempt 3: Try to find canvas using files.list
+            coreExports.info(`🔍 Discovery Attempt 3: Direct files.list search (bypassing discovery function)`);
+            // Attempt 3: Try to find canvas using files.list directly
             try {
                 const filesResult = await client.files.list({
                     channel: channelId,
                     types: 'canvas',
-                    count: 20
+                    count: 50
                 });
+                coreExports.info(`📋 Direct files.list: ok=${filesResult.ok}, files_count=${filesResult.files?.length || 0}`);
                 if (filesResult.ok &&
                     filesResult.files &&
                     filesResult.files.length > 0) {
-                    coreExports.info(`📋 Found ${filesResult.files.length} canvas files via files.list`);
+                    coreExports.info(`📋 Found ${filesResult.files.length} canvas files via direct files.list`);
+                    // Log all files and take the most recent
+                    filesResult.files.forEach((file, index) => {
+                        coreExports.info(`📋 Direct search - Canvas ${index + 1}: id=${file.id}, name="${file.name}", title="${file.title}"`);
+                    });
                     // Take the most recent canvas file
                     const latestCanvas = filesResult.files[0];
                     if (latestCanvas.id) {
-                        coreExports.info(`✅ Using latest canvas from files.list: ${latestCanvas.id}`);
+                        coreExports.info(`✅ Using latest canvas from direct search: ${latestCanvas.id}`);
                         existingCanvasId = latestCanvas.id;
                     }
                 }
             }
             catch (filesError) {
-                coreExports.debug(`Could not list canvas files: ${filesError}`);
+                coreExports.warning(`❌ Direct files.list search failed: ${filesError}`);
+            }
+        }
+        if (!existingCanvasId) {
+            coreExports.info(`🔍 Discovery Attempt 4: Last resort - check if ANY canvas files exist anywhere`);
+            // Attempt 4: Check all canvas files without channel filter
+            try {
+                const allFilesResult = await client.files.list({
+                    types: 'canvas',
+                    count: 100
+                });
+                coreExports.info(`📋 All canvas files: ok=${allFilesResult.ok}, files_count=${allFilesResult.files?.length || 0}`);
+                if (allFilesResult.ok &&
+                    allFilesResult.files &&
+                    allFilesResult.files.length > 0) {
+                    coreExports.info(`📋 Found ${allFilesResult.files.length} total canvas files in workspace`);
+                    // Look for any canvas that might be related to this channel
+                    for (const file of allFilesResult.files) {
+                        coreExports.info(`📋 Workspace canvas: id=${file.id}, name="${file.name}", title="${file.title}", channels=${JSON.stringify(file.channels)}`);
+                        // Check if this canvas mentions our channel
+                        if (file.channels && file.channels.includes(channelId)) {
+                            coreExports.info(`✅ Found canvas associated with our channel: ${file.id}`);
+                            existingCanvasId = file.id;
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (allFilesError) {
+                coreExports.warning(`❌ All files search failed: ${allFilesError}`);
             }
         }
         if (existingCanvasId) {
-            coreExports.info(`📋 Found existing canvas ${existingCanvasId} for channel ${channelId}`);
+            coreExports.info(`✅ DISCOVERY SUCCESS: Found existing canvas ${existingCanvasId} for channel ${channelId}`);
         }
         else {
-            coreExports.info(`📋 No existing canvas found for channel ${channelId}`);
+            coreExports.info(`❌ DISCOVERY FAILED: No existing canvas found for channel ${channelId} after 4 attempts`);
         }
         // Load existing releases from canvas content or create new list
         const releases = existingCanvasId && existingCanvasId !== 'CANVAS_EXISTS_BUT_ID_UNKNOWN'
@@ -57344,7 +57379,16 @@ async function updateReleasesListCanvas(client, channel, newRelease) {
         const channelInfo = await getChannelInfo(client, channelId);
         const channelName = channelInfo?.name || channelId;
         // Create or update the canvas
+        coreExports.info(`🎨 Starting canvas creation/update process`);
+        coreExports.info(`📋 Canvas operation: ${existingCanvasId ? 'UPDATE existing' : 'CREATE new'}`);
+        if (existingCanvasId) {
+            coreExports.info(`📋 Target canvas ID: ${existingCanvasId}`);
+        }
+        coreExports.info(`📋 Total releases to include: ${releases.length}`);
         const canvasId = await createOrUpdateCanvas(client, channelId, channelName, releases, existingCanvasId);
+        coreExports.info(`✅ Canvas operation completed successfully`);
+        coreExports.info(`📋 Final canvas ID: ${canvasId}`);
+        coreExports.info(`📋 Operation type: ${canvasId === existingCanvasId ? 'UPDATED existing canvas' : 'CREATED new canvas'}`);
         coreExports.info(`✅ Successfully updated releases list canvas ${canvasId} (${releases.length} releases)`);
         return true;
     }
@@ -57377,13 +57421,16 @@ async function discoverChannelCanvas(client, channelId) {
     coreExports.info(`🔍 Attempting to discover existing canvas for channel ${channelId}`);
     // Method 1: Try conversations.info first
     try {
+        coreExports.info(`🔍 Method 1: Checking conversations.info for channel ${channelId}`);
         const result = await client.conversations.info({
             channel: channelId,
             include_num_members: false
         });
         if (result.ok && result.channel) {
             const channel = result.channel;
-            coreExports.debug(`📋 Channel info response: ${JSON.stringify(channel, null, 2)}`);
+            coreExports.info(`📋 Channel info received successfully`);
+            coreExports.info(`📋 Channel properties: ${JSON.stringify(channel.properties || {}, null, 2)}`);
+            coreExports.info(`📋 Full channel object keys: ${Object.keys(channel).join(', ')}`);
             // Check multiple possible canvas field locations
             const canvasId = channel.properties?.canvas?.file_id ||
                 channel.canvas?.file_id ||
@@ -57397,8 +57444,11 @@ async function discoverChannelCanvas(client, channelId) {
             }
             else {
                 coreExports.info(`📋 No canvas found in channel properties`);
-                coreExports.debug(`Available properties: ${JSON.stringify(channel.properties, null, 2)}`);
+                coreExports.info(`📋 Checked fields: properties.canvas.file_id, canvas.file_id, properties.canvas_id, canvas_id, properties.canvas.id, canvas.id`);
             }
+        }
+        else {
+            coreExports.warning(`❌ conversations.info failed: ${result.error}`);
         }
     }
     catch (error) {
@@ -57411,48 +57461,62 @@ async function discoverChannelCanvas(client, channelId) {
     }
     // Method 2: Try files.list to find canvas files in the channel
     try {
-        coreExports.info(`🔍 Trying files.list to find canvas files for channel ${channelId}`);
+        coreExports.info(`🔍 Method 2: Checking files.list for canvas files in channel ${channelId}`);
         const filesResult = await client.files.list({
             channel: channelId,
             types: 'canvas',
             count: 20
         });
+        coreExports.info(`📋 files.list response: ok=${filesResult.ok}, files_count=${filesResult.files?.length || 0}`);
         if (filesResult.ok && filesResult.files && filesResult.files.length > 0) {
             coreExports.info(`📋 Found ${filesResult.files.length} canvas files via files.list`);
+            // Log all canvas files found
+            filesResult.files.forEach((file, index) => {
+                coreExports.info(`📋 Canvas ${index + 1}: id=${file.id}, name="${file.name}", title="${file.title}", created=${file.created}`);
+            });
             // Look for a canvas that looks like our releases canvas
             for (const file of filesResult.files) {
-                coreExports.debug(`📋 Checking canvas file: ${file.id} - ${file.name} - ${file.title}`);
+                coreExports.info(`📋 Checking if canvas ${file.id} is a releases canvas...`);
                 // Check if this looks like a releases canvas
                 if (file.name?.includes('Releases') ||
                     file.title?.includes('Releases') ||
                     file.name?.includes('📦') ||
                     file.title?.includes('📦')) {
-                    coreExports.info(`✅ Found existing releases canvas via files.list: ${file.id}`);
+                    coreExports.info(`✅ Found existing releases canvas via files.list: ${file.id} (matched on name/title)`);
                     return file.id;
                 }
             }
             // If no releases-specific canvas found, use the most recent one
             const latestCanvas = filesResult.files[0];
             if (latestCanvas.id) {
-                coreExports.info(`✅ Using latest canvas from files.list: ${latestCanvas.id}`);
+                coreExports.info(`✅ Using latest canvas from files.list: ${latestCanvas.id} (fallback to most recent)`);
                 return latestCanvas.id;
+            }
+        }
+        else {
+            if (!filesResult.ok) {
+                coreExports.warning(`❌ files.list failed: ${filesResult.error}`);
+            }
+            else {
+                coreExports.info(`📋 No canvas files found in channel ${channelId}`);
             }
         }
     }
     catch (error) {
-        coreExports.debug(`Could not use files.list API: ${error}`);
+        coreExports.warning(`❌ files.list failed with exception: ${error}`);
     }
     // Method 3: Try canvases.list API if available (but only for discovery, not creation)
     try {
-        coreExports.info(`🔍 Trying canvases list API for channel ${channelId}`);
+        coreExports.info(`🔍 Method 3: Checking canvases.list API for channel ${channelId}`);
         const listResult = await client.canvases.list({
             limit: 50
         });
+        coreExports.info(`📋 canvases.list response: ok=${listResult.ok}, canvases_count=${listResult.canvases?.length || 0}`);
         if (listResult.ok && listResult.canvases) {
-            coreExports.debug(`📋 Found ${listResult.canvases.length} canvases in workspace`);
+            coreExports.info(`📋 Found ${listResult.canvases.length} canvases in workspace`);
             // Look for a canvas that might belong to this channel
             for (const canvas of listResult.canvases) {
-                coreExports.debug(`📋 Checking canvas: ${JSON.stringify(canvas, null, 2)}`);
+                coreExports.info(`📋 Checking canvas: id=${canvas.id || canvas.canvas_id}, channel_id=${canvas.channel_id}, channel=${canvas.channel}`);
                 // Check if this canvas is associated with our channel
                 if (canvas.channel_id === channelId ||
                     canvas.channel === channelId ||
@@ -57461,12 +57525,18 @@ async function discoverChannelCanvas(client, channelId) {
                     return canvas.id || canvas.canvas_id;
                 }
             }
+            coreExports.info(`📋 No canvases found associated with channel ${channelId}`);
+        }
+        else {
+            if (!listResult.ok) {
+                coreExports.warning(`❌ canvases.list failed: ${listResult.error}`);
+            }
         }
     }
     catch (error) {
-        coreExports.debug(`Could not use canvases.list API: ${error}`);
+        coreExports.warning(`❌ canvases.list failed with exception: ${error}`);
     }
-    coreExports.info(`📋 No existing canvas found for channel ${channelId}`);
+    coreExports.info(`📋 Canvas discovery completed: No existing canvas found for channel ${channelId}`);
     return undefined;
 }
 /**
@@ -57571,10 +57641,17 @@ async function debugChannelInfo(client, channelId) {
  */
 async function createOrUpdateCanvas(client, channelId, channelName, releases, existingCanvasId) {
     const markdownContent = generateCanvasMarkdown(channelName, releases);
-    if (existingCanvasId && existingCanvasId !== 'CANVAS_EXISTS_BUT_ID_UNKNOWN') {
+    coreExports.info(`🎨 createOrUpdateCanvas called with:`);
+    coreExports.info(`📋 channelId: ${channelId}`);
+    coreExports.info(`📋 channelName: ${channelName}`);
+    coreExports.info(`📋 existingCanvasId: ${existingCanvasId || 'undefined'}`);
+    coreExports.info(`📋 releases count: ${releases.length}`);
+    coreExports.info(`📋 markdown length: ${markdownContent.length} characters`);
+    if (existingCanvasId) {
         // Update existing canvas
-        coreExports.info(`📝 Updating existing canvas ${existingCanvasId}`);
+        coreExports.info(`📝 UPDATING existing canvas ${existingCanvasId}`);
         try {
+            coreExports.info(`📋 Calling canvases.edit API...`);
             await client.canvases.edit({
                 canvas_id: existingCanvasId,
                 changes: [
@@ -57592,65 +57669,21 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
         }
         catch (error) {
             coreExports.error(`❌ Failed to update existing canvas ${existingCanvasId}: ${error?.message || error}`);
+            coreExports.error(`❌ Update error details: ${JSON.stringify(error.data || {}, null, 2)}`);
             throw error;
         }
     }
     else {
-        // Handle case where we know canvas exists but don't have ID
-        if (existingCanvasId === 'CANVAS_EXISTS_BUT_ID_UNKNOWN') {
-            coreExports.warning(`⚠️ Canvas exists but ID unknown. Attempting creative solution...`);
-            // Try to get canvas files for this channel
-            try {
-                const filesResult = await client.files.list({
-                    channel: channelId,
-                    types: 'canvas',
-                    count: 10
-                });
-                if (filesResult.ok &&
-                    filesResult.files &&
-                    filesResult.files.length > 0) {
-                    coreExports.info(`📋 Found ${filesResult.files.length} canvas files in channel`);
-                    for (const file of filesResult.files) {
-                        coreExports.info(`📋 Found canvas file: ${file.id} - ${file.name}`);
-                        // Try to update this canvas
-                        try {
-                            await client.canvases.edit({
-                                canvas_id: file.id,
-                                changes: [
-                                    {
-                                        operation: 'replace',
-                                        document_content: {
-                                            type: 'markdown',
-                                            markdown: markdownContent
-                                        }
-                                    }
-                                ]
-                            });
-                            coreExports.info(`✅ Successfully updated canvas via files.list: ${file.id}`);
-                            return file.id;
-                        }
-                        catch (updateError) {
-                            coreExports.debug(`Could not update canvas ${file.id}: ${updateError}`);
-                            continue;
-                        }
-                    }
-                }
-            }
-            catch (filesError) {
-                coreExports.debug(`Could not list canvas files: ${filesError}`);
-            }
-            // If we still can't find it, create a warning and skip canvas update
-            coreExports.error(`❌ Canvas exists but cannot be discovered or updated. Skipping canvas update.`);
-            throw new Error(`Canvas exists but cannot be discovered. Please check the Canvas tab in channel ${channelId} manually.`);
-        }
         // Try to create a new channel canvas
-        coreExports.info(`🎨 Creating new channel canvas for ${channelId}`);
+        coreExports.info(`🎨 CREATING new channel canvas for ${channelId}`);
+        coreExports.info(`📋 No existing canvas ID provided, proceeding with creation`);
         // Debug channel information
         await debugChannelInfo(client, channelId);
         try {
             // Log markdown content size for debugging
             const contentLength = markdownContent.length;
             coreExports.info(`📊 Canvas content size: ${contentLength} characters`);
+            coreExports.info(`📋 Calling conversations.canvases.create API...`);
             const result = await client.conversations.canvases.create({
                 channel_id: channelId,
                 document_content: {
@@ -57658,6 +57691,7 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                     markdown: markdownContent
                 }
             });
+            coreExports.info(`📋 Canvas creation API response: ok=${result.ok}, canvas_id=${result.canvas_id}, error=${result.error}`);
             if (!result.ok || !result.canvas_id) {
                 throw new Error(`Canvas creation failed: ${result.error}`);
             }
@@ -57666,6 +57700,8 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
         }
         catch (error) {
             const errorCode = error.data?.error || error.message;
+            coreExports.error(`❌ Canvas creation failed with error code: ${errorCode}`);
+            coreExports.error(`❌ Creation error details: ${JSON.stringify(error.data || {}, null, 2)}`);
             if (errorCode === 'not_in_channel') {
                 throw new Error(`Bot is not in channel ${channelId}. Please add the bot to the channel using: /invite @YourBotName`);
             }
@@ -57673,8 +57709,49 @@ async function createOrUpdateCanvas(client, channelId, channelName, releases, ex
                 throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
             }
             else if (errorCode === 'channel_canvas_already_exists') {
-                coreExports.error(`❌ Canvas already exists but our discovery failed completely`);
-                throw new Error(`Canvas already exists but could not be discovered. This is a bug in our discovery logic. Please report this issue.`);
+                // This should not happen with our improved discovery, but handle gracefully
+                coreExports.warning(`⚠️ Canvas already exists but wasn't discovered. Attempting emergency discovery...`);
+                try {
+                    const filesResult = await client.files.list({
+                        channel: channelId,
+                        types: 'canvas',
+                        count: 10
+                    });
+                    coreExports.info(`📋 Emergency search: ok=${filesResult.ok}, files_count=${filesResult.files?.length || 0}`);
+                    if (filesResult.ok &&
+                        filesResult.files &&
+                        filesResult.files.length > 0) {
+                        coreExports.info(`📋 Found ${filesResult.files.length} canvas files in emergency search`);
+                        for (const file of filesResult.files) {
+                            coreExports.info(`📋 Emergency - Canvas file: ${file.id} - ${file.name}`);
+                            // Try to update this canvas
+                            try {
+                                await client.canvases.edit({
+                                    canvas_id: file.id,
+                                    changes: [
+                                        {
+                                            operation: 'replace',
+                                            document_content: {
+                                                type: 'markdown',
+                                                markdown: markdownContent
+                                            }
+                                        }
+                                    ]
+                                });
+                                coreExports.info(`✅ Successfully updated canvas via emergency search: ${file.id}`);
+                                return file.id;
+                            }
+                            catch (updateError) {
+                                coreExports.warning(`❌ Could not update canvas ${file.id}: ${updateError}`);
+                                continue;
+                            }
+                        }
+                    }
+                }
+                catch (filesError) {
+                    coreExports.warning(`❌ Emergency canvas search failed: ${filesError}`);
+                }
+                throw new Error(`Canvas already exists but could not be discovered or updated. Please delete any existing canvases in channel ${channelId} and try again.`);
             }
             else if (errorCode === 'canvas_creation_failed') {
                 throw new Error(`Canvas creation failed. Possible causes: 1) Canvases disabled in workspace, 2) Free tier limitations, 3) Channel type doesn't support canvases, 4) Workspace admin restrictions. Channel ID: ${channelId}`);
