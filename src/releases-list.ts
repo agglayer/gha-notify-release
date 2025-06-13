@@ -241,14 +241,8 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
       )
       for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
         core.info(`📋 Breaking change content: "${breakingChange}"`)
-        // Split by bullet points in case they're concatenated
-        const items = splitBulletPoints(breakingChange)
-        core.info(
-          `📋 Split into ${items.length} items: ${JSON.stringify(items)}`
-        )
-        for (const item of items) {
-          content += `• ${item}\n`
-        }
+        // Parsers now handle splitting at source, so each item should be individual
+        content += `• ${breakingChange}\n`
       }
       content += '\n'
     }
@@ -256,10 +250,7 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
       for (const commitBreak of release.breakingAnalysis
         .conventionalCommitBreaks) {
-        const items = splitBulletPoints(commitBreak)
-        for (const item of items) {
-          content += `• ${item}\n`
-        }
+        content += `• ${commitBreak}\n`
       }
       content += '\n'
     }
@@ -285,14 +276,8 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
       for (const diff of release.configAnalysis.configDiffs) {
         core.info(`📋 Config diff: ${JSON.stringify(diff)}`)
         if (diff.type === 'mention') {
-          // Split the content in case it contains multiple bullet points
-          const items = splitBulletPoints(diff.content)
-          core.info(
-            `📋 Config content split into ${items.length} items: ${JSON.stringify(items)}`
-          )
-          for (const item of items) {
-            content += `• ${item}\n`
-          }
+          // Parsers now handle splitting at source, so each item should be individual
+          content += `• ${diff.content}\n`
         } else {
           content += `• ${diff.filename} - See release notes for details\n`
         }
@@ -328,53 +313,6 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 
   core.info(`📋 Generated canvas content length: ${content.length} characters`)
   return content
-}
-
-/**
- * Splits content that might contain concatenated bullet points into individual items
- */
-function splitBulletPoints(content: string): string[] {
-  core.info(`📋 splitBulletPoints input: "${content}"`)
-
-  if (!content || content.trim().length === 0) {
-    return []
-  }
-
-  // Remove any leading bullet marker first
-  let text = content.replace(/^[-*•]\s*/, '').trim()
-  core.info(`📋 After removing leading bullet: "${text}"`)
-
-  // The content appears to be concatenated with " • " (space-bullet-space)
-  // Split by this exact pattern
-  let parts: string[]
-  if (text.includes(' • ')) {
-    parts = text.split(' • ')
-    core.info(`📋 Split by ' • ' pattern: ${JSON.stringify(parts)}`)
-  } else if (text.includes('• ')) {
-    parts = text.split('• ')
-    core.info(`📋 Split by '• ' pattern: ${JSON.stringify(parts)}`)
-  } else if (text.includes(' •')) {
-    parts = text.split(' •')
-    core.info(`📋 Split by ' •' pattern: ${JSON.stringify(parts)}`)
-  } else {
-    parts = [text]
-    core.info(
-      `📋 No bullet patterns found, keeping as single item: ${JSON.stringify(parts)}`
-    )
-  }
-
-  // Clean up each part
-  const result = parts
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    .map((part) => {
-      // Remove any remaining bullet markers
-      return part.replace(/^[-*•]\s*/, '').trim()
-    })
-    .filter((part) => part.length > 0)
-
-  core.info(`📋 Final cleaned result: ${JSON.stringify(result)}`)
-  return result
 }
 
 /**

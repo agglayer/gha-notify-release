@@ -92,9 +92,22 @@ function findE2ESectionItems(releaseNotes: string): string[] {
     ) {
       const cleanLine = line.replace(/^[-*•]\s*/, '').trim()
       if (cleanLine) {
-        // Only add non-empty lines
-        e2eItems.push(cleanLine)
-        core.debug(`Found E2E item: ${cleanLine}`)
+        // Check if this line contains multiple bullet points concatenated with " • "
+        if (cleanLine.includes(' • ')) {
+          // Split by the bullet separator and add each item individually
+          const splitItems = cleanLine.split(' • ')
+          for (const item of splitItems) {
+            const cleanItem = item.trim()
+            if (cleanItem) {
+              e2eItems.push(cleanItem)
+              core.debug(`Found E2E item (split): ${cleanItem}`)
+            }
+          }
+        } else {
+          // Single item on this line
+          e2eItems.push(cleanLine)
+          core.debug(`Found E2E item: ${cleanLine}`)
+        }
       }
     }
   }
