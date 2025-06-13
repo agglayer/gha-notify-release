@@ -336,24 +336,30 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 function splitBulletPoints(content: string): string[] {
   core.info(`📋 splitBulletPoints input: "${content}"`)
 
-  // Remove any existing bullet markers at the start
-  let cleaned = content.replace(/^[-*•]\s*/, '').trim()
-  core.info(`📋 After removing leading bullets: "${cleaned}"`)
-
-  // If the content contains bullet markers within it, split by them
-  // Handle both "•" and " • " (space bullet space) patterns
-  if (cleaned.includes('•')) {
-    const result = cleaned
-      .split(/\s*•\s*/) // Split by bullet with optional spaces around it
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-    core.info(`📋 Split by bullets, result: ${JSON.stringify(result)}`)
-    return result
+  if (!content || content.trim().length === 0) {
+    return []
   }
 
-  // If no internal bullets, return as single item
-  const result = [cleaned].filter((item) => item.length > 0)
-  core.info(`📋 No internal bullets, result: ${JSON.stringify(result)}`)
+  // First, normalize the content by removing any leading bullet point
+  let text = content.replace(/^[-*•]\s*/, '').trim()
+  core.info(`📋 After removing leading bullet: "${text}"`)
+
+  // Split by bullet points that appear within the text
+  // This handles patterns like "text • more text • even more text"
+  const parts = text.split(/\s*•\s+/)
+  core.info(`📋 Split result: ${JSON.stringify(parts)}`)
+
+  // Clean up each part
+  const result = parts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      // Remove any remaining bullet markers at the start
+      return part.replace(/^[-*•]\s*/, '').trim()
+    })
+    .filter((part) => part.length > 0)
+
+  core.info(`📋 Final cleaned result: ${JSON.stringify(result)}`)
   return result
 }
 
