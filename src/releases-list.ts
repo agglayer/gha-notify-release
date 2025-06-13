@@ -233,49 +233,128 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
  * Parses Slack message content and formats it cleanly for canvas display
  */
 function parseSlackMessageForCanvas(slackMessage: string): string {
-  // Remove the title line (first line that contains the release type and repository)
-  const lines = slackMessage.split('\n')
-  let contentLines: string[] = []
-  let skipFirstLine = true
+  // Split the message into lines for processing
+  let lines = slackMessage.split('\n')
+  let cleanLines: string[] = []
 
-  for (const line of lines) {
-    // Skip the first line that contains the main release announcement
-    if (skipFirstLine && line.includes('🚀') && line.includes(':')) {
-      skipFirstLine = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    // Skip the first line that contains the main release announcement (e.g., "⚠️🚀 BREAKING RELEASE: repo v1.0.0")
+    if (i === 0 && line.includes('🚀') && line.includes(':')) {
       continue
     }
-    skipFirstLine = false
 
-    // Skip the duplicate release link and timestamp lines at the end
+    // Skip lines at the end with release links and timestamps
     if (line.includes('🔗 View Release') || line.includes('Released at ')) {
       continue
     }
 
     // Skip empty lines at the beginning
-    if (contentLines.length === 0 && line.trim() === '') {
+    if (cleanLines.length === 0 && line.trim() === '') {
       continue
     }
 
-    contentLines.push(line)
+    cleanLines.push(line)
   }
 
-  // Join and clean up the content
-  let cleanContent = contentLines.join('\n').trim()
+  // Join the lines back together
+  let content = cleanLines.join('\n').trim()
 
-  // Fix bullet point formatting issues
-  cleanContent = cleanContent
-    // Handle concatenated bullet points (• text • text)
-    .replace(/•\s*([^•\n]+)\s*•/g, '• $1\n•')
-    // Ensure section headers have proper spacing
-    .replace(/(\*[A-Z\s]+\*)\s*•/g, '$1\n• ')
-    // Fix missing newlines between sections
-    .replace(/(\*\*[^*]+\*\*:?)\s*([^*\n])/g, '$1\n$2')
-    // Clean up multiple consecutive newlines
+  // Now fix the specific formatting issues
+
+  // 1. Fix section headers - remove extra asterisks and ensure proper formatting
+  content = content.replace(/\*([A-Z\s]+)\*/g, '**$1**')
+
+  // 2. Handle breaking changes section specifically
+  content = content.replace(
+    /⚠️ \*BREAKING CHANGES DETECTED\*(.*?)(?=⚙️|\n\n|$)/gs,
+    (match, changes) => {
+      let formatted = '⚠️ **BREAKING CHANGES DETECTED**\n'
+
+      // Split the changes by bullet points and format each one
+      const items = changes.split('•').filter((item: string) => item.trim())
+      for (const item of items) {
+        const cleanItem = item.trim()
+        if (cleanItem) {
+          formatted += `• ${cleanItem}\n`
+        }
+      }
+
+      return formatted
+    }
+  )
+
+  // 3. Handle configuration changes section specifically
+  content = content.replace(
+    /⚙️ \*CONFIGURATION CHANGES\*(.*?)(?=🧪|\n\n|$)/gs,
+    (match, changes) => {
+      let formatted = '⚙️ **CONFIGURATION CHANGES**\n'
+
+      // Look for the "Configuration Updates:" subsection
+      if (changes.includes('Configuration Updates:')) {
+        formatted += '\n**Configuration Updates:**\n'
+
+        // Extract content after "Configuration Updates:"
+        const updatesContent =
+          changes.split('Configuration Updates:')[1] || changes
+
+        // Split by bullet points and format
+        const items = updatesContent
+          .split('•')
+          .filter((item: string) => item.trim())
+        for (const item of items) {
+          const cleanItem = item.trim()
+          if (cleanItem) {
+            formatted += `• ${cleanItem}\n`
+          }
+        }
+      } else {
+        // If no subsection, just format the bullet points
+        const items = changes.split('•').filter((item: string) => item.trim())
+        for (const item of items) {
+          const cleanItem = item.trim()
+          if (cleanItem) {
+            formatted += `• ${cleanItem}\n`
+          }
+        }
+      }
+
+      return formatted
+    }
+  )
+
+  // 4. Handle E2E section if present
+  content = content.replace(
+    /🧪 \*E2E WORKFLOWS DETECTED\*(.*?)(?=\n\n|$)/gs,
+    (match, e2eContent) => {
+      let formatted = '🧪 **E2E WORKFLOWS DETECTED**\n'
+
+      // Split by bullet points and format
+      const items = e2eContent.split('•').filter((item: string) => item.trim())
+      for (const item of items) {
+        const cleanItem = item.trim()
+        if (cleanItem) {
+          formatted += `• ${cleanItem}\n`
+        }
+      }
+
+      return formatted
+    }
+  )
+
+  // 5. Clean up any remaining formatting issues
+  content = content
+    // Remove any remaining single asterisks that should be double
+    .replace(/\*([^*\n]+)\*/g, '**$1**')
+    // Fix any double spaces
+    .replace(/  +/g, ' ')
+    // Clean up extra newlines but preserve intentional spacing
     .replace(/\n{3,}/g, '\n\n')
-    // Ensure proper spacing after section headers
-    .replace(/(\*[^*]+\*)\s*(\w)/g, '$1\n\n$2')
+    // Trim the result
+    .trim()
 
-  return cleanContent
+  return content
 }
 
 /**
