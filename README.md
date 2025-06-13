@@ -467,7 +467,7 @@ This project is licensed under the MIT License.
 
 #### Basic Release Workflow
 
-```yaml
+   ```yaml
 name: Release Notification
 
 on:
