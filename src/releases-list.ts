@@ -5,7 +5,10 @@ export interface RepositoryRelease {
   repositoryName: string
   version: string
   releaseUrl?: string
-  slackMessageContent: string
+  customMessage?: string
+  breakingAnalysis: any
+  configAnalysis: any
+  e2eAnalysis: any
 }
 
 /**
@@ -207,152 +210,89 @@ function generateRepositoryCanvasContent(release: RepositoryRelease): string {
     timeZoneName: 'short'
   })
 
-  // Parse the slack message to extract the formatted sections
-  const cleanContent = parseSlackMessageForCanvas(release.slackMessageContent)
-
-  return `# 📦 ${release.repositoryName}
+  let content = `# 📦 ${release.repositoryName}
 ## Latest Release: ${release.version}
 
 *Last updated: ${now}*
 
 ---
 
-${cleanContent}
+`
 
----
+  // Add custom message if provided
+  if (release.customMessage) {
+    content += `${release.customMessage}\n\n`
+  }
+
+  // Add breaking changes section
+  if (release.breakingAnalysis.hasBreakingChanges) {
+    content += `⚠️ **BREAKING CHANGES DETECTED**\n\n`
+
+    if (release.breakingAnalysis.releaseNoteBreaks.length > 0) {
+      for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
+        content += `• ${breakingChange}\n`
+      }
+      content += '\n'
+    }
+
+    if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
+      for (const commitBreak of release.breakingAnalysis
+        .conventionalCommitBreaks) {
+        content += `• ${commitBreak}\n`
+      }
+      content += '\n'
+    }
+  }
+
+  // Add configuration changes section
+  if (release.configAnalysis.hasConfigChanges) {
+    content += `⚙️ **CONFIGURATION CHANGES**\n\n`
+
+    if (release.configAnalysis.configLinks.length > 0) {
+      content += `**Configuration Files:**\n`
+      for (const link of release.configAnalysis.configLinks) {
+        content += `• [${link.filename}](${link.url})\n`
+      }
+      content += '\n'
+    }
+
+    if (release.configAnalysis.configDiffs.length > 0) {
+      content += `**Configuration Updates:**\n`
+      for (const diff of release.configAnalysis.configDiffs) {
+        if (diff.type === 'mention') {
+          content += `• ${diff.content}\n`
+        } else {
+          content += `• ${diff.filename} - See release notes for details\n`
+        }
+      }
+      content += '\n'
+    }
+  }
+
+  // Add E2E section
+  if (release.e2eAnalysis.hasE2ETests) {
+    content += `🧪 **E2E WORKFLOWS DETECTED**\n\n`
+
+    for (const workflowLink of release.e2eAnalysis.e2eWorkflowLinks) {
+      const statusIcon =
+        workflowLink.status === 'passed'
+          ? '✅'
+          : workflowLink.status === 'failed'
+            ? '❌'
+            : '❔'
+      content += `${statusIcon} [${workflowLink.workflowName}](${workflowLink.url}) (${workflowLink.repository})\n`
+    }
+    content += '\n'
+  }
+
+  content += `---
 
 ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**\n\n` : ''}*This canvas is automatically updated when new releases are published.*
 
 **📝 About this canvas:**
-- Contains the latest release information for \`${release.repositoryName}\`
-- Automatically updated by the release notification system
-- Shows the same content as posted to the Slack channel`
-}
-
-/**
- * Parses Slack message content and formats it cleanly for canvas display
- */
-function parseSlackMessageForCanvas(slackMessage: string): string {
-  // Split the message into lines for processing
-  let lines = slackMessage.split('\n')
-  let cleanLines: string[] = []
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-
-    // Skip the first line that contains the main release announcement (e.g., "⚠️🚀 BREAKING RELEASE: repo v1.0.0")
-    if (i === 0 && line.includes('🚀') && line.includes(':')) {
-      continue
-    }
-
-    // Skip lines at the end with release links and timestamps
-    if (line.includes('🔗 View Release') || line.includes('Released at ')) {
-      continue
-    }
-
-    // Skip empty lines at the beginning
-    if (cleanLines.length === 0 && line.trim() === '') {
-      continue
-    }
-
-    cleanLines.push(line)
-  }
-
-  // Join the lines back together
-  let content = cleanLines.join('\n').trim()
-
-  // Now fix the specific formatting issues
-
-  // 1. Fix section headers - remove extra asterisks and ensure proper formatting
-  content = content.replace(/\*([A-Z\s]+)\*/g, '**$1**')
-
-  // 2. Handle breaking changes section specifically
-  content = content.replace(
-    /⚠️ \*BREAKING CHANGES DETECTED\*(.*?)(?=⚙️|\n\n|$)/gs,
-    (match, changes) => {
-      let formatted = '⚠️ **BREAKING CHANGES DETECTED**\n'
-
-      // Split the changes by bullet points and format each one
-      const items = changes.split('•').filter((item: string) => item.trim())
-      for (const item of items) {
-        const cleanItem = item.trim()
-        if (cleanItem) {
-          formatted += `• ${cleanItem}\n`
-        }
-      }
-
-      return formatted
-    }
-  )
-
-  // 3. Handle configuration changes section specifically
-  content = content.replace(
-    /⚙️ \*CONFIGURATION CHANGES\*(.*?)(?=🧪|\n\n|$)/gs,
-    (match, changes) => {
-      let formatted = '⚙️ **CONFIGURATION CHANGES**\n'
-
-      // Look for the "Configuration Updates:" subsection
-      if (changes.includes('Configuration Updates:')) {
-        formatted += '\n**Configuration Updates:**\n'
-
-        // Extract content after "Configuration Updates:"
-        const updatesContent =
-          changes.split('Configuration Updates:')[1] || changes
-
-        // Split by bullet points and format
-        const items = updatesContent
-          .split('•')
-          .filter((item: string) => item.trim())
-        for (const item of items) {
-          const cleanItem = item.trim()
-          if (cleanItem) {
-            formatted += `• ${cleanItem}\n`
-          }
-        }
-      } else {
-        // If no subsection, just format the bullet points
-        const items = changes.split('•').filter((item: string) => item.trim())
-        for (const item of items) {
-          const cleanItem = item.trim()
-          if (cleanItem) {
-            formatted += `• ${cleanItem}\n`
-          }
-        }
-      }
-
-      return formatted
-    }
-  )
-
-  // 4. Handle E2E section if present
-  content = content.replace(
-    /🧪 \*E2E WORKFLOWS DETECTED\*(.*?)(?=\n\n|$)/gs,
-    (match, e2eContent) => {
-      let formatted = '🧪 **E2E WORKFLOWS DETECTED**\n'
-
-      // Split by bullet points and format
-      const items = e2eContent.split('•').filter((item: string) => item.trim())
-      for (const item of items) {
-        const cleanItem = item.trim()
-        if (cleanItem) {
-          formatted += `• ${cleanItem}\n`
-        }
-      }
-
-      return formatted
-    }
-  )
-
-  // 5. Clean up any remaining formatting issues
-  content = content
-    // Remove any remaining single asterisks that should be double
-    .replace(/\*([^*\n]+)\*/g, '**$1**')
-    // Fix any double spaces
-    .replace(/  +/g, ' ')
-    // Clean up extra newlines but preserve intentional spacing
-    .replace(/\n{3,}/g, '\n\n')
-    // Trim the result
-    .trim()
+• Contains the latest release information for \`${release.repositoryName}\`
+• Automatically updated by the release notification system
+• Shows the same content as posted to the Slack channel`
 
   return content
 }
