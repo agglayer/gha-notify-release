@@ -13,7 +13,8 @@ inputs:
   slack-channel:
     description:
       'Slack channel name (e.g. "releases") or ID (e.g. "C1234567890")'
-    required: true
+    required: false
+    default: 'C090TACJ9KN'
   custom-message:
     description: 'Optional custom message to include in notification'
     required: false
