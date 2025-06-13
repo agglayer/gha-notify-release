@@ -436,13 +436,33 @@ async function loadReleasesFromCanvas(
   canvasId: string
 ): Promise<ReleaseEntry[]> {
   try {
+    core.info(`📋 Loading existing releases from canvas ${canvasId}`)
+
     // Get canvas content using files.info
     const result = await client.files.info({ file: canvasId })
 
     if (result.ok && result.file) {
       // Try to extract releases from canvas markdown content
       const content = (result.file as any).plain_text || ''
-      return parseReleasesFromMarkdown(content)
+      core.info(`📋 Canvas content length: ${content.length} characters`)
+      core.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`)
+
+      const parsedReleases = parseReleasesFromMarkdown(content)
+      core.info(
+        `📋 Parsed ${parsedReleases.length} existing releases from canvas`
+      )
+
+      if (parsedReleases.length > 0) {
+        core.debug(
+          `📋 First parsed release: ${JSON.stringify(parsedReleases[0])}`
+        )
+      }
+
+      return parsedReleases
+    } else {
+      core.warning(
+        `Canvas files.info failed: ok=${result.ok}, error=${result.error}`
+      )
     }
   } catch (error) {
     core.warning(
@@ -460,22 +480,34 @@ function parseReleasesFromMarkdown(content: string): ReleaseEntry[] {
   const releases: ReleaseEntry[] = []
 
   try {
+    core.debug(`📋 Parsing markdown content for releases...`)
+
     // Look for repository sections like ### repo/name
     const repoSections = content.split(/### ([^#\n]+)/)
+    core.debug(
+      `📋 Found ${Math.floor(repoSections.length / 2)} repository sections`
+    )
 
     for (let i = 1; i < repoSections.length; i += 2) {
       const repositoryName = repoSections[i].trim()
       const sectionContent = repoSections[i + 1]
+
+      core.debug(`📋 Processing repository: ${repositoryName}`)
+      core.debug(`📋 Section content length: ${sectionContent?.length || 0}`)
 
       // Look for release entries like - 🚀 **[v1.2.3](url)** - Jan 15, 2024
       const releaseMatches = sectionContent.matchAll(
         /- ([🚀⚠️⚙️🧪]+) \*\*\[([^\]]+)\]\([^)]+\)\*\* - ([^(]+)(?:\([^)]*\))?/g
       )
 
+      let matchCount = 0
       for (const match of releaseMatches) {
+        matchCount++
         const emoji = match[1]
         const version = match[2]
         const releaseDate = match[3].trim()
+
+        core.debug(`📋 Found release: ${version} (${emoji}) on ${releaseDate}`)
 
         // Determine change type from emoji
         let changeType: 'normal' | 'breaking' | 'config' | 'e2e' = 'normal'
@@ -493,7 +525,13 @@ function parseReleasesFromMarkdown(content: string): ReleaseEntry[] {
           repositoryName
         })
       }
+
+      core.debug(`📋 Found ${matchCount} releases for ${repositoryName}`)
     }
+
+    core.info(
+      `📋 Successfully parsed ${releases.length} total releases from canvas`
+    )
   } catch (error) {
     core.warning(`Error parsing releases from canvas content: ${error}`)
   }
