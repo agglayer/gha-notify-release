@@ -1,14 +1,14 @@
 name: 'GitHub Release Slack Notification'
 description:
   'Automatically notify Slack channels of new GitHub releases with breaking
-  change detection'
+  change detection and per-repository canvas management'
 author: 'agglayer'
 
 # Define your inputs here.
 inputs:
   slack-bot-token:
     description:
-      'Slack bot token (xoxb-...) with chat:write and canvases:write permissions'
+      'Slack bot token (xoxb-...) with chat:write, canvases:write, and files:read permissions'
     required: true
   slack-channel:
     description:
@@ -19,15 +19,19 @@ inputs:
     required: false
     default: ''
   maintain-releases-list:
-    description: 'Whether to maintain a releases list canvas in the channel'
+    description: 'Whether to maintain per-repository canvases with latest release information'
     required: false
     default: 'true'
 
 outputs:
-  message-sent:
-    description: 'Whether the Slack message was sent successfully'
-  canvas-updated:
-    description: 'Whether the releases canvas was updated successfully'
+  notification-sent:
+    description: 'Whether the Slack notification was sent successfully'
+  repository-canvas-updated:
+    description: 'Whether the repository canvas was updated successfully'
+  timestamp:
+    description: 'ISO timestamp when the notification was sent'
+  channel:
+    description: 'The Slack channel where the notification was sent'
 
 runs:
   using: 'node20'

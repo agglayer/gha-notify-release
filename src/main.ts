@@ -1,60 +1,48 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-import { sendReleaseNotification } from './slack.js'
-import { analyzeBreakingChanges } from './breaking-changes.js'
-import { analyzeConfigChanges } from './config-analysis.js'
-import { analyzeE2ETests } from './e2e-analysis.js'
-import { updateReleasesListCanvas } from './releases-list.js'
 import { WebClient } from '@slack/web-api'
+import { sendReleaseNotification } from './slack.js'
+import { updateRepositoryCanvas } from './releases-list.js'
+import {
+  analyzeBreakingChanges,
+  formatBreakingChangesForSlack
+} from './breaking-changes.js'
+import {
+  analyzeConfigChanges,
+  formatConfigChangesForSlack
+} from './config-analysis.js'
+import { analyzeE2ETests, formatE2ETestsForSlack } from './e2e-analysis.js'
 
 /**
  * The main function for the action.
- *
- * @returns Resolves when the action is complete.
+ * @returns {Promise<void>} Resolves when the action is complete.
  */
 export async function run(): Promise<void> {
   try {
-    // Get inputs from action configuration
-    let slackBotToken: string = core.getInput('slack-bot-token')
-    const slackChannel: string = core.getInput('slack-channel') || 'C090TACJ9KN'
-    const customMessage: string = core.getInput('custom-message')
-    const maintainReleasesList: boolean =
-      core.getInput('maintain-releases-list') === 'true'
+    // Get inputs from the workflow
+    const slackBotToken = core.getInput('slack-bot-token', { required: true })
+    const slackChannel = core.getInput('slack-channel', { required: true })
+    const customMessage = core.getInput('custom-message')
+    const maintainReleasesList = core.getBooleanInput('maintain-releases-list')
 
-    // Get data from GitHub release event
-    const releaseVersion: string = github.context.payload.release
-      ?.tag_name as string
-    const releaseUrl: string = github.context.payload.release
-      ?.html_url as string
-    const releaseNotes: string =
-      (github.context.payload.release?.body as string) || ''
+    // Get release information from GitHub context
+    const releaseVersion =
+      github.context.payload.release?.tag_name ||
+      core.getInput('release-version')
+    const releaseUrl = github.context.payload.release?.html_url
+    const releaseNotes = github.context.payload.release?.body || ''
 
-    // Validate required data
     if (!releaseVersion) {
       throw new Error(
-        'Release version not found in GitHub release event. This action must be triggered by a release event.'
+        'No release version found. This action should be triggered by a release event or provide release-version input.'
       )
-    }
-
-    // Handle bot token with fallback to environment variable
-    if (!slackBotToken) {
-      // Try to get token from environment variable as fallback
-      const fallbackToken = process.env.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE
-      if (fallbackToken) {
-        slackBotToken = fallbackToken
-        core.info('Using default Agglayer bot token')
-      } else {
-        throw new Error(
-          'slack-bot-token is required. Either provide it as an input or ensure SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE secret is available.'
-        )
-      }
     }
 
     core.info(`Sending release notification for version: ${releaseVersion}`)
     core.debug(`Target channel: ${slackChannel}`)
     core.debug(`Release notes length: ${releaseNotes.length} characters`)
     if (maintainReleasesList) {
-      core.debug(`Releases list maintenance enabled`)
+      core.debug(`Repository canvas maintenance enabled`)
     }
 
     // Analyze release notes for breaking changes, config changes, and e2e tests
@@ -77,45 +65,39 @@ export async function run(): Promise<void> {
 
     core.info('Release notification sent successfully!')
 
-    // Update releases list if enabled
-    let releasesListUpdated = false
+    // Update repository canvas if enabled
+    let repositoryCanvasUpdated = false
     if (maintainReleasesList) {
       const slack = new WebClient(slackBotToken)
 
-      // Determine change type based on analysis (priority: breaking > config > e2e > normal)
-      let changeType: 'normal' | 'breaking' | 'config' | 'e2e' = 'normal'
-      if (breakingAnalysis.hasBreakingChanges) {
-        changeType = 'breaking'
-      } else if (configAnalysis.hasConfigChanges) {
-        changeType = 'config'
-      } else if (e2eAnalysis.hasE2ETests) {
-        changeType = 'e2e'
-      }
+      // Generate the complete Slack message content for storage
+      const slackMessageContent = generateSlackMessageContent({
+        version: releaseVersion,
+        releaseUrl: releaseUrl || undefined,
+        releaseNotes: releaseNotes || undefined,
+        customMessage: customMessage || undefined,
+        repositoryName,
+        breakingAnalysis,
+        configAnalysis,
+        e2eAnalysis
+      })
 
-      releasesListUpdated = await updateReleasesListCanvas(
+      repositoryCanvasUpdated = await updateRepositoryCanvas(
         slack,
         slackChannel,
         {
+          repositoryName,
           version: releaseVersion,
-          releaseDate: new Date().toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-          }),
-          changeType,
-          hasBreaking: breakingAnalysis.hasBreakingChanges,
-          hasConfig: configAnalysis.hasConfigChanges,
-          hasE2E: e2eAnalysis.hasE2ETests,
           releaseUrl: releaseUrl || undefined,
-          repositoryName
+          slackMessageContent
         }
       )
 
-      if (releasesListUpdated) {
-        core.info('Releases list Canvas updated successfully!')
+      if (repositoryCanvasUpdated) {
+        core.info('Repository canvas updated successfully!')
       } else {
         core.warning(
-          'Failed to update releases list Canvas. Check if the bot has canvases:write permission and access to the channel.'
+          'Failed to update repository canvas. Check if the bot has canvases:write permission and access to the channel.'
         )
       }
     }
@@ -124,7 +106,10 @@ export async function run(): Promise<void> {
     core.setOutput('notification-sent', 'true')
     core.setOutput('timestamp', new Date().toISOString())
     core.setOutput('channel', slackChannel)
-    core.setOutput('releases-list-updated', releasesListUpdated.toString())
+    core.setOutput(
+      'repository-canvas-updated',
+      repositoryCanvasUpdated.toString()
+    )
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) {
@@ -133,4 +118,82 @@ export async function run(): Promise<void> {
       core.setFailed('An unknown error occurred')
     }
   }
+}
+
+/**
+ * Generates the complete Slack message content for storage in canvas
+ */
+function generateSlackMessageContent(params: {
+  version: string
+  releaseUrl?: string
+  releaseNotes?: string
+  customMessage?: string
+  repositoryName: string
+  breakingAnalysis: any
+  configAnalysis: any
+  e2eAnalysis: any
+}): string {
+  const {
+    version,
+    releaseUrl,
+    customMessage,
+    repositoryName,
+    breakingAnalysis,
+    configAnalysis,
+    e2eAnalysis
+  } = params
+
+  // Choose appropriate emoji and type based on changes (priority: breaking > config > e2e > normal)
+  let releaseEmoji = '🚀'
+  let releaseType = '*New Release*'
+
+  if (breakingAnalysis.hasBreakingChanges) {
+    releaseEmoji = '⚠️🚀'
+    releaseType = '*BREAKING RELEASE*'
+  } else if (configAnalysis.hasConfigChanges) {
+    releaseEmoji = '⚙️🚀'
+    releaseType = '*CONFIG UPDATE*'
+  } else if (e2eAnalysis.hasE2ETests) {
+    releaseEmoji = '🧪🚀'
+    releaseType = '*E2E WORKFLOW RELEASE*'
+  }
+
+  // Build the main message with repository name first
+  let message = `${releaseEmoji} ${releaseType}: \`${repositoryName}\` ${version}`
+
+  if (customMessage) {
+    message += `\n\n${customMessage}`
+  }
+
+  // Add breaking changes section if found
+  const breakingChangesText = formatBreakingChangesForSlack(breakingAnalysis)
+  if (breakingChangesText) {
+    message += breakingChangesText
+  }
+
+  // Add config changes section if found
+  const configChangesText = formatConfigChangesForSlack(configAnalysis)
+  if (configChangesText) {
+    if (breakingChangesText) {
+      message += '\n' // Add extra spacing after breaking changes
+    }
+    message += configChangesText
+  }
+
+  // Add e2e test section if found
+  const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis)
+  if (e2eTestsText) {
+    if (breakingChangesText || configChangesText) {
+      message += '\n' // Add extra spacing after previous sections
+    }
+    message += e2eTestsText
+  }
+
+  if (releaseUrl) {
+    message += `\n\n🔗 [View Release](${releaseUrl})`
+  }
+
+  message += `\n\n_Released at ${new Date().toISOString()}_`
+
+  return message
 }
