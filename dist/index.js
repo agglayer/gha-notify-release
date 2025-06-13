@@ -57389,8 +57389,6 @@ async function updateRepositoryCanvas(client, channel, release) {
             coreExports.error(`Could not find channel ID for ${channel}`);
             return false;
         }
-        // Ensure "Latest releases" folder exists
-        const folderId = await ensureLatestReleasesFolder(client, channelId);
         // Look for existing canvas for this repository
         const existingCanvasId = await findRepositoryCanvas(client, channelId, release.repositoryName);
         if (existingCanvasId) {
@@ -57401,7 +57399,7 @@ async function updateRepositoryCanvas(client, channel, release) {
         else {
             // Create new canvas for this repository
             coreExports.info(`🎨 Creating new canvas for ${release.repositoryName}`);
-            await createRepositoryCanvas(client, channelId, release, folderId);
+            await createRepositoryCanvas(client, channelId, release);
         }
         coreExports.info(`✅ Successfully updated repository canvas for ${release.repositoryName}`);
         return true;
@@ -57410,24 +57408,6 @@ async function updateRepositoryCanvas(client, channel, release) {
         const errorMessage = error?.message || error;
         coreExports.error(`❌ Failed to update repository canvas: ${errorMessage}`);
         return false;
-    }
-}
-/**
- * Ensures the "Latest releases" folder exists in the channel
- */
-async function ensureLatestReleasesFolder(client, channelId) {
-    try {
-        coreExports.info(`📁 Ensuring "Latest releases" folder exists in channel ${channelId}`);
-        // Note: Slack doesn't have a direct folder API for channels
-        // Folders are typically managed through the UI
-        // We'll create canvases without folder organization for now
-        // and suggest manual folder organization to users
-        coreExports.info(`📁 Folder management is handled manually in Slack UI`);
-        return undefined;
-    }
-    catch (error) {
-        coreExports.warning(`Could not manage folder: ${error}`);
-        return undefined;
     }
 }
 /**
@@ -57469,7 +57449,7 @@ async function findRepositoryCanvas(client, channelId, repositoryName) {
 /**
  * Creates a new canvas for a repository
  */
-async function createRepositoryCanvas(client, channelId, release, folderId) {
+async function createRepositoryCanvas(client, channelId, release) {
     try {
         // Generate canvas title and content
         const canvasTitle = `${release.repositoryName} - Latest Release`;
@@ -57540,6 +57520,8 @@ function generateRepositoryCanvasContent(release) {
         minute: '2-digit',
         timeZoneName: 'short'
     });
+    // Parse the slack message to extract the formatted sections
+    const cleanContent = parseSlackMessageForCanvas(release.slackMessageContent);
     return `# 📦 ${release.repositoryName}
 ## Latest Release: ${release.version}
 
@@ -57547,9 +57529,7 @@ function generateRepositoryCanvasContent(release) {
 
 ---
 
-## 📢 Release Notification
-
-${release.slackMessageContent}
+${cleanContent}
 
 ---
 
@@ -57558,8 +57538,48 @@ ${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**
 **📝 About this canvas:**
 - Contains the latest release information for \`${release.repositoryName}\`
 - Automatically updated by the release notification system
-- Shows the same content as posted to the Slack channel
-- Organized in the "Latest releases" section for easy access`;
+- Shows the same content as posted to the Slack channel`;
+}
+/**
+ * Parses Slack message content and formats it cleanly for canvas display
+ */
+function parseSlackMessageForCanvas(slackMessage) {
+    // Remove the title line (first line that contains the release type and repository)
+    const lines = slackMessage.split('\n');
+    let contentLines = [];
+    let skipFirstLine = true;
+    for (const line of lines) {
+        // Skip the first line that contains the main release announcement
+        if (skipFirstLine && line.includes('🚀') && line.includes(':')) {
+            skipFirstLine = false;
+            continue;
+        }
+        skipFirstLine = false;
+        // Skip the duplicate release link and timestamp lines at the end
+        if (line.includes('🔗 View Release') || line.includes('Released at ')) {
+            continue;
+        }
+        // Skip empty lines at the beginning
+        if (contentLines.length === 0 && line.trim() === '') {
+            continue;
+        }
+        contentLines.push(line);
+    }
+    // Join and clean up the content
+    let cleanContent = contentLines.join('\n').trim();
+    // Fix bullet point formatting issues
+    cleanContent = cleanContent
+        // Handle concatenated bullet points (• text • text)
+        .replace(/•\s*([^•\n]+)\s*•/g, '• $1\n•')
+        // Ensure section headers have proper spacing
+        .replace(/(\*[A-Z\s]+\*)\s*•/g, '$1\n• ')
+        // Fix missing newlines between sections
+        .replace(/(\*\*[^*]+\*\*:?)\s*([^*\n])/g, '$1\n$2')
+        // Clean up multiple consecutive newlines
+        .replace(/\n{3,}/g, '\n\n')
+        // Ensure proper spacing after section headers
+        .replace(/(\*[^*]+\*)\s*(\w)/g, '$1\n\n$2');
+    return cleanContent;
 }
 /**
  * Gets the channel ID from channel name or returns the ID if already provided
