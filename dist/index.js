@@ -57614,37 +57614,6 @@ async function discoverChannelCanvas(client, channelId) {
     catch (error) {
         coreExports.warning(`❌ files.list failed with exception: ${error}`);
     }
-    // Method 3: Try canvases.list API if available (but only for discovery, not creation)
-    try {
-        coreExports.info(`🔍 Method 3: Checking canvases.list API for channel ${channelId}`);
-        const listResult = await client.canvases.list({
-            limit: 50
-        });
-        coreExports.info(`📋 canvases.list response: ok=${listResult.ok}, canvases_count=${listResult.canvases?.length || 0}`);
-        if (listResult.ok && listResult.canvases) {
-            coreExports.info(`📋 Found ${listResult.canvases.length} canvases in workspace`);
-            // Look for a canvas that might belong to this channel
-            for (const canvas of listResult.canvases) {
-                coreExports.info(`📋 Checking canvas: id=${canvas.id || canvas.canvas_id}, channel_id=${canvas.channel_id}, channel=${canvas.channel}`);
-                // Check if this canvas is associated with our channel
-                if (canvas.channel_id === channelId ||
-                    canvas.channel === channelId ||
-                    (canvas.properties && canvas.properties.channel_id === channelId)) {
-                    coreExports.info(`✅ Found existing canvas via canvases.list: ${canvas.id || canvas.canvas_id}`);
-                    return canvas.id || canvas.canvas_id;
-                }
-            }
-            coreExports.info(`📋 No canvases found associated with channel ${channelId}`);
-        }
-        else {
-            if (!listResult.ok) {
-                coreExports.warning(`❌ canvases.list failed: ${listResult.error}`);
-            }
-        }
-    }
-    catch (error) {
-        coreExports.warning(`❌ canvases.list failed with exception: ${error}`);
-    }
     coreExports.info(`📋 Canvas discovery completed: No existing canvas found for channel ${channelId}`);
     return undefined;
 }
@@ -57657,10 +57626,40 @@ async function loadReleasesFromCanvas(client, canvasId) {
         // Get canvas content using files.info
         const result = await client.files.info({ file: canvasId });
         if (result.ok && result.file) {
-            // Try to extract releases from canvas markdown content
-            const content = result.file.plain_text || '';
+            const file = result.file;
+            // Log all available fields to understand what's available
+            coreExports.info(`📋 Canvas file info received:`);
+            coreExports.info(`📋 - File type: ${file.filetype}`);
+            coreExports.info(`📋 - File name: ${file.name}`);
+            coreExports.info(`📋 - File size: ${file.size}`);
+            coreExports.info(`📋 - Available fields: ${Object.keys(file).join(', ')}`);
+            // Try multiple possible content fields
+            const possibleContentFields = [
+                'plain_text',
+                'content',
+                'preview',
+                'preview_plain_text',
+                'edit_link',
+                'canvas_template'
+            ];
+            let content = '';
+            let contentSource = 'none';
+            for (const field of possibleContentFields) {
+                if (file[field]) {
+                    content = file[field];
+                    contentSource = field;
+                    break;
+                }
+            }
+            coreExports.info(`📋 Canvas content source: ${contentSource}`);
             coreExports.info(`📋 Canvas content length: ${content.length} characters`);
-            coreExports.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`);
+            if (content.length > 0) {
+                coreExports.debug(`📋 Canvas content preview: ${content.substring(0, 500)}...`);
+            }
+            else {
+                coreExports.warning(`📋 Canvas content is empty - this might be a new canvas or content isn't accessible via files.info`);
+                coreExports.debug(`📋 Full file object: ${JSON.stringify(file, null, 2)}`);
+            }
             const parsedReleases = parseReleasesFromMarkdown(content);
             coreExports.info(`📋 Parsed ${parsedReleases.length} existing releases from canvas`);
             if (parsedReleases.length > 0) {
