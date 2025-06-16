@@ -57318,42 +57318,48 @@ async function sendReleaseNotification(token, channel, notification) {
         releaseEmoji = '🧪🚀';
         releaseType = '*E2E WORKFLOW RELEASE*';
     }
-    // Build the main message with repository name first
-    let message = `${releaseEmoji} ${releaseType}: `;
-    if (notification.repositoryName) {
-        message += `\`${notification.repositoryName}\` ${notification.version}`;
-    }
-    else {
-        message += notification.version;
-    }
+    // Build the main message content (title is separate)
+    let message = '';
     if (notification.customMessage) {
-        message += `\n\n${notification.customMessage}`;
+        message += `${notification.customMessage}\n`;
     }
     // Add breaking changes section if found
     const breakingChangesText = formatBreakingChangesForSlack(breakingAnalysis);
     if (breakingChangesText) {
+        if (message)
+            message += '\n'; // Add spacing if there's content above
         message += breakingChangesText;
     }
     // Add config changes section if found
     const configChangesText = formatConfigChangesForSlack(configAnalysis);
     if (configChangesText) {
-        if (breakingChangesText) {
-            message += '\n'; // Add extra spacing after breaking changes
-        }
+        if (message)
+            message += '\n'; // Add spacing if there's content above
         message += configChangesText;
     }
     // Add e2e test section if found
     const e2eTestsText = formatE2ETestsForSlack(e2eAnalysis);
     if (e2eTestsText) {
-        if (breakingChangesText || configChangesText) {
-            message += '\n'; // Add extra spacing after previous sections
-        }
+        if (message)
+            message += '\n'; // Add spacing if there's content above
         message += e2eTestsText;
     }
-    if (notification.releaseUrl) {
-        message += `\n\n🔗 <${notification.releaseUrl}|View Release>`;
+    // If no custom message or detected changes, add a simple message
+    if (!message &&
+        !notification.customMessage &&
+        !breakingChangesText &&
+        !configChangesText &&
+        !e2eTestsText) {
+        message = '🎉 New release is now available!';
     }
-    message += `\n\n_Released at ${new Date().toISOString()}_`;
+    if (notification.releaseUrl) {
+        if (message)
+            message += '\n\n'; // Add spacing if there's content above
+        message += `🔗 <${notification.releaseUrl}|View Release>`;
+    }
+    if (message)
+        message += '\n\n'; // Add spacing if there's content above
+    message += `_Released at ${new Date().toISOString()}_`;
     // Create message with priority color coding
     let messageColor = '#36a64f'; // Green for normal release
     if (breakingAnalysis.hasBreakingChanges) {
@@ -57365,8 +57371,8 @@ async function sendReleaseNotification(token, channel, notification) {
     else if (e2eAnalysis.hasE2ETests) {
         messageColor = '#00bcd4'; // Cyan for e2e tested releases
     }
-    // Create the text with repository name first for fallback
-    let messageText = `${releaseType}: `;
+    // Create the text with repository name first for fallback (this becomes the title)
+    let messageText = `${releaseEmoji} ${releaseType}: `;
     if (notification.repositoryName) {
         messageText += `\`${notification.repositoryName}\` ${notification.version}`;
     }
