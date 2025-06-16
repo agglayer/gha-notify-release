@@ -4,7 +4,7 @@ author: '@sebastiendan'
 
 # Define your inputs here.
 inputs:
-  slack-token:
+  slack-bot-token:
     description: 'Slack bot token (xoxb-...)'
     required: true
   slack-channel:
