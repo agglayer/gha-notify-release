@@ -57416,340 +57416,40 @@ async function sendReleaseNotification(token, channel, notification) {
 }
 
 /**
- * Updates or creates a canvas for the repository's latest release
- *
- * @param client - Slack WebClient instance
- * @param channel - Slack channel to post to
- * @param release - Repository release information with Slack message content
- */
-async function updateRepositoryCanvas(client, channel, release) {
-    try {
-        coreExports.info(`📋 Updating repository canvas for ${release.repositoryName}`);
-        // Get channel ID (handle both channel names and IDs)
-        const channelId = await getChannelId(client, channel);
-        if (!channelId) {
-            coreExports.error(`Could not find channel ID for ${channel}`);
-            return false;
-        }
-        // Look for existing canvas for this repository
-        const existingCanvasId = await findRepositoryCanvas(client, channelId, release.repositoryName);
-        if (existingCanvasId) {
-            // Update existing canvas
-            coreExports.info(`📝 Updating existing canvas for ${release.repositoryName}: ${existingCanvasId}`);
-            await updateCanvasContent(client, existingCanvasId, release);
-        }
-        else {
-            // Create new canvas for this repository
-            coreExports.info(`🎨 Creating new canvas for ${release.repositoryName}`);
-            await createRepositoryCanvas(client, channelId, release);
-        }
-        coreExports.info(`✅ Successfully updated repository canvas for ${release.repositoryName}`);
-        return true;
-    }
-    catch (error) {
-        const errorMessage = error?.message || error;
-        coreExports.error(`❌ Failed to update repository canvas: ${errorMessage}`);
-        return false;
-    }
-}
-/**
- * Finds existing canvas for a specific repository
- */
-async function findRepositoryCanvas(client, channelId, repositoryName) {
-    try {
-        coreExports.info(`🔍 Looking for existing canvas for repository: ${repositoryName}`);
-        // Search for canvas files in the channel
-        const result = await client.files.list({
-            channel: channelId,
-            types: 'canvas',
-            count: 50
-        });
-        if (result.ok && result.files) {
-            coreExports.info(`📋 Found ${result.files.length} canvas files in channel`);
-            // Look for canvas with repository name in title/name
-            for (const file of result.files) {
-                const fileName = file.name || file.title || '';
-                coreExports.debug(`📋 Checking canvas: "${fileName}" (ID: ${file.id})`);
-                // Match repository name in various formats
-                if (fileName.includes(repositoryName) ||
-                    fileName.includes(repositoryName.replace('/', '-')) ||
-                    fileName.includes(repositoryName.split('/')[1]) // Just repo name without owner
-                ) {
-                    coreExports.info(`✅ Found existing canvas for ${repositoryName}: ${file.id}`);
-                    return file.id;
-                }
-            }
-        }
-        coreExports.info(`📋 No existing canvas found for repository: ${repositoryName}`);
-        return undefined;
-    }
-    catch (error) {
-        coreExports.warning(`Error searching for repository canvas: ${error}`);
-        return undefined;
-    }
-}
-/**
- * Creates a new canvas for a repository
- */
-async function createRepositoryCanvas(client, channelId, release) {
-    try {
-        // Generate canvas title and content
-        const canvasTitle = `${release.repositoryName} - Latest Release`;
-        const canvasContent = generateRepositoryCanvasContent(release);
-        coreExports.info(`🎨 Creating canvas: "${canvasTitle}"`);
-        coreExports.info(`📊 Canvas content length: ${canvasContent.length} characters`);
-        const result = await client.conversations.canvases.create({
-            channel_id: channelId,
-            document_content: {
-                type: 'markdown',
-                markdown: canvasContent
-            }
-        });
-        if (!result.ok || !result.canvas_id) {
-            throw new Error(`Canvas creation failed: ${result.error}`);
-        }
-        coreExports.info(`✅ Created new canvas: ${result.canvas_id}`);
-        return result.canvas_id;
-    }
-    catch (error) {
-        const errorCode = error.data?.error || error.message;
-        coreExports.error(`❌ Canvas creation failed: ${errorCode}`);
-        if (errorCode === 'not_in_channel') {
-            throw new Error(`Bot is not in channel ${channelId}. Please add the bot to the channel using: /invite @YourBotName`);
-        }
-        else if (errorCode === 'missing_scope') {
-            throw new Error(`Bot missing required permission 'canvases:write'. Please add this scope in your Slack app settings.`);
-        }
-        throw error;
-    }
-}
-/**
- * Updates existing canvas content
- */
-async function updateCanvasContent(client, canvasId, release) {
-    try {
-        const canvasContent = generateRepositoryCanvasContent(release);
-        coreExports.info(`📝 Updating canvas content (${canvasContent.length} characters)`);
-        await client.canvases.edit({
-            canvas_id: canvasId,
-            changes: [
-                {
-                    operation: 'replace',
-                    document_content: {
-                        type: 'markdown',
-                        markdown: canvasContent
-                    }
-                }
-            ]
-        });
-        coreExports.info(`✅ Successfully updated canvas ${canvasId}`);
-    }
-    catch (error) {
-        coreExports.error(`❌ Failed to update canvas ${canvasId}: ${error?.message || error}`);
-        throw error;
-    }
-}
-/**
- * Generates markdown content for repository canvas
- */
-function generateRepositoryCanvasContent(release) {
-    const now = new Date().toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZoneName: 'short'
-    });
-    coreExports.info(`📋 Generating canvas content for ${release.repositoryName}`);
-    coreExports.info(`📋 Breaking analysis: ${JSON.stringify(release.breakingAnalysis, null, 2)}`);
-    coreExports.info(`📋 Config analysis: ${JSON.stringify(release.configAnalysis, null, 2)}`);
-    let content = `## Latest Release: ${release.version}
-
-*Last updated: ${now}*
-
----
-
-`;
-    // Add custom message if provided
-    if (release.customMessage) {
-        content += `${release.customMessage}\n\n`;
-    }
-    // Add breaking changes section
-    if (release.breakingAnalysis.hasBreakingChanges) {
-        content += `⚠️ **BREAKING CHANGES DETECTED**\n\n`;
-        if (release.breakingAnalysis.releaseNoteBreaks.length > 0) {
-            coreExports.info(`📋 Processing ${release.breakingAnalysis.releaseNoteBreaks.length} breaking changes`);
-            for (const breakingChange of release.breakingAnalysis.releaseNoteBreaks) {
-                coreExports.info(`📋 Breaking change content: "${breakingChange}"`);
-                // Parsers now handle splitting at source, so each item should be individual
-                content += `• ${breakingChange}\n`;
-            }
-            content += '\n';
-        }
-        if (release.breakingAnalysis.conventionalCommitBreaks.length > 0) {
-            for (const commitBreak of release.breakingAnalysis
-                .conventionalCommitBreaks) {
-                content += `• ${commitBreak}\n`;
-            }
-            content += '\n';
-        }
-    }
-    // Add configuration changes section
-    if (release.configAnalysis.hasConfigChanges) {
-        content += `⚙️ **CONFIGURATION CHANGES**\n\n`;
-        if (release.configAnalysis.configLinks.length > 0) {
-            content += `**Configuration Files:**\n`;
-            for (const link of release.configAnalysis.configLinks) {
-                content += `• [${link.filename}](${link.url})\n`;
-            }
-            content += '\n';
-        }
-        if (release.configAnalysis.configDiffs.length > 0) {
-            content += `**Configuration Updates:**\n`;
-            coreExports.info(`📋 Processing ${release.configAnalysis.configDiffs.length} config diffs`);
-            for (const diff of release.configAnalysis.configDiffs) {
-                coreExports.info(`📋 Config diff: ${JSON.stringify(diff)}`);
-                if (diff.type === 'mention') {
-                    // Parsers now handle splitting at source, so each item should be individual
-                    content += `• ${diff.content}\n`;
-                }
-                else {
-                    content += `• ${diff.filename} - See release notes for details\n`;
-                }
-            }
-            content += '\n';
-        }
-    }
-    // Add E2E section
-    if (release.e2eAnalysis.hasE2ETests) {
-        content += `🧪 **E2E WORKFLOWS DETECTED**\n\n`;
-        for (const workflowLink of release.e2eAnalysis.e2eWorkflowLinks) {
-            const statusIcon = workflowLink.status === 'passed'
-                ? '✅'
-                : workflowLink.status === 'failed'
-                    ? '❌'
-                    : '❔';
-            content += `${statusIcon} [${workflowLink.workflowName}](${workflowLink.url}) (${workflowLink.repository})\n`;
-        }
-        content += '\n';
-    }
-    content += `---
-
-${release.releaseUrl ? `🔗 **[View Release on GitHub](${release.releaseUrl})**\n\n` : ''}*This canvas is automatically updated when new releases are published.*
-
-**📝 About this canvas:**
-• Contains the latest release information for \`${release.repositoryName}\`
-• Automatically updated by the release notification system
-• Shows the same content as posted to the Slack channel`;
-    coreExports.info(`📋 Generated canvas content length: ${content.length} characters`);
-    return content;
-}
-/**
- * Gets the channel ID from channel name or returns the ID if already provided
- */
-async function getChannelId(client, channel) {
-    // If it's already a channel ID, return it
-    if (channel.startsWith('C')) {
-        return channel;
-    }
-    // Remove # if present
-    const channelName = channel.replace('#', '');
-    try {
-        const result = await client.conversations.list({
-            types: 'public_channel,private_channel'
-        });
-        if (result.channels) {
-            const foundChannel = result.channels.find((ch) => ch.name === channelName);
-            return foundChannel?.id || null;
-        }
-    }
-    catch (error) {
-        if (error.data?.error === 'missing_scope') {
-            coreExports.info(`Note: Bot needs 'channels:read' permission to resolve channel names. Please use channel ID directly or add the permission.`);
-        }
-        else {
-            coreExports.warning(`Error finding channel ID for ${channel}: ${error}`);
-        }
-    }
-    return null;
-}
-
-/**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
  */
 async function run() {
     try {
-        // Get inputs from the workflow
-        const slackBotToken = coreExports.getInput('slack-bot-token', { required: true });
-        const slackChannel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
+        // Get inputs
+        const token = coreExports.getInput('slack-token', { required: true });
+        const channel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
+        const releaseBody = coreExports.getInput('release-body');
+        const releaseUrl = coreExports.getInput('release-url');
+        const releaseVersion = coreExports.getInput('release-version', { required: true });
         const customMessage = coreExports.getInput('custom-message');
-        const maintainReleasesList = coreExports.getBooleanInput('maintain-releases-list');
-        // Get release information from GitHub context
-        const releaseVersion = githubExports.context.payload.release?.tag_name ||
-            coreExports.getInput('release-version');
-        const releaseUrl = githubExports.context.payload.release?.html_url;
-        const releaseNotes = githubExports.context.payload.release?.body || '';
-        if (!releaseVersion) {
-            throw new Error('No release version found. This action should be triggered by a release event or provide release-version input.');
+        const repositoryName = coreExports.getInput('repository-name') || githubExports.context.repo.repo;
+        coreExports.info(`🚀 Starting release notification for ${repositoryName}`);
+        coreExports.info(`📦 Version: ${releaseVersion}`);
+        coreExports.info(`📢 Slack channel: ${channel}`);
+        if (customMessage) {
+            coreExports.info(`💬 Custom message: ${customMessage}`);
         }
-        coreExports.info(`Sending release notification for version: ${releaseVersion}`);
-        coreExports.debug(`Target channel: ${slackChannel}`);
-        coreExports.debug(`Release notes length: ${releaseNotes.length} characters`);
-        if (maintainReleasesList) {
-            coreExports.debug(`Repository canvas maintenance enabled`);
-        }
-        // Analyze release notes for breaking changes, config changes, and e2e tests
-        const breakingAnalysis = analyzeBreakingChanges(releaseNotes);
-        const configAnalysis = analyzeConfigChanges(releaseNotes);
-        const e2eAnalysis = analyzeE2ETests(releaseNotes);
-        // Get repository name from GitHub context
-        const repositoryName = githubExports.context.repo.owner + '/' + githubExports.context.repo.repo;
-        // Send the Slack notification
-        await sendReleaseNotification(slackBotToken, slackChannel, {
+        // Send Slack notification
+        await sendReleaseNotification(token, channel, {
             version: releaseVersion,
-            releaseUrl: releaseUrl || undefined,
-            releaseNotes: releaseNotes || undefined,
-            customMessage: customMessage || undefined,
-            repositoryName
+            releaseUrl: releaseUrl,
+            releaseNotes: releaseBody,
+            customMessage: customMessage,
+            repositoryName: repositoryName
         });
-        coreExports.info('Release notification sent successfully!');
-        // Update repository canvas if enabled
-        let repositoryCanvasUpdated = false;
-        if (maintainReleasesList) {
-            const slack = new distExports.WebClient(slackBotToken);
-            repositoryCanvasUpdated = await updateRepositoryCanvas(slack, slackChannel, {
-                repositoryName,
-                version: releaseVersion,
-                releaseUrl: releaseUrl || undefined,
-                customMessage: customMessage || undefined,
-                breakingAnalysis,
-                configAnalysis,
-                e2eAnalysis
-            });
-            if (repositoryCanvasUpdated) {
-                coreExports.info('Repository canvas updated successfully!');
-            }
-            else {
-                coreExports.warning('Failed to update repository canvas. Check if the bot has canvases:write permission and access to the channel.');
-            }
-        }
-        // Set outputs for other workflow steps to use
-        coreExports.setOutput('notification-sent', 'true');
-        coreExports.setOutput('timestamp', new Date().toISOString());
-        coreExports.setOutput('channel', slackChannel);
-        coreExports.setOutput('repository-canvas-updated', repositoryCanvasUpdated.toString());
+        coreExports.info('✅ Release notification sent successfully!');
     }
     catch (error) {
-        // Fail the workflow run if an error occurs
-        if (error instanceof Error) {
-            coreExports.setFailed(`Failed to send release notification: ${error.message}`);
-        }
-        else {
-            coreExports.setFailed('An unknown error occurred');
-        }
+        // Handle any errors
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        coreExports.error(`❌ Action failed: ${errorMessage}`);
+        coreExports.setFailed(errorMessage);
     }
 }
 
