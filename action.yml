@@ -13,7 +13,7 @@ inputs:
     default: 'C090TACJ9KN'
   release-version:
     description: 'Release version/tag'
-    required: true
+    required: false
   release-url:
     description: 'URL to the release page'
     required: false

@@ -43,8 +43,9 @@ jobs:
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
-          slack-channel: 'releases'
 ```
+
+> **That's it!** The action will automatically detect the release information from the GitHub event and send an intelligent notification to your default channel.
 
 ## Configuration
 
@@ -59,11 +60,13 @@ jobs:
 | Input | Description | Default | Example |
 |-------|-------------|---------|---------|
 | `slack-channel` | Slack channel ID or name | `C090TACJ9KN` | `releases` or `C1234567890` |
-| `release-version` | Release version/tag | Auto-detected | `v1.2.3` |
-| `release-url` | URL to release page | Auto-detected | `https://github.com/owner/repo/releases/tag/v1.2.3` |
-| `release-body` | Release notes content | Auto-detected | Release notes markdown |
+| `release-version` | Release version/tag | Auto-detected from release event | `v1.2.3` |
+| `release-url` | URL to release page | Auto-detected from release event | `https://github.com/owner/repo/releases/tag/v1.2.3` |
+| `release-body` | Release notes content | Auto-detected from release event | Release notes markdown |
 | `custom-message` | Custom message to include | None | `🎉 New release available!` |
-| `repository-name` | Repository name | Auto-detected | `owner/repo` |
+| `repository-name` | Repository name | Auto-detected from context | `owner/repo` |
+
+> **Note**: When triggered by a `release` event, all release information is automatically extracted from the GitHub context. You only need to provide inputs if you want to override the defaults or use the action outside of release events.
 
 ## Slack Message Examples
 
