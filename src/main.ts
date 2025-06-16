@@ -11,12 +11,27 @@ export async function run(): Promise<void> {
     // Get inputs
     const token = core.getInput('slack-bot-token', { required: true })
     const channel = core.getInput('slack-channel') || 'C090TACJ9KN'
-    const releaseBody = core.getInput('release-body')
-    const releaseUrl = core.getInput('release-url')
-    const releaseVersion = core.getInput('release-version', { required: true })
     const customMessage = core.getInput('custom-message')
+
+    // Get release information from GitHub context or inputs
+    const releaseVersion =
+      core.getInput('release-version') ||
+      github.context.payload.release?.tag_name
+    const releaseUrl =
+      core.getInput('release-url') || github.context.payload.release?.html_url
+    const releaseBody =
+      core.getInput('release-body') ||
+      github.context.payload.release?.body ||
+      ''
     const repositoryName =
-      core.getInput('repository-name') || github.context.repo.repo
+      core.getInput('repository-name') ||
+      `${github.context.repo.owner}/${github.context.repo.repo}`
+
+    if (!releaseVersion) {
+      throw new Error(
+        'No release version found. This action should be triggered by a release event or provide release-version input.'
+      )
+    }
 
     core.info(`🚀 Starting release notification for ${repositoryName}`)
     core.info(`📦 Version: ${releaseVersion}`)

@@ -57424,11 +57424,19 @@ async function run() {
         // Get inputs
         const token = coreExports.getInput('slack-bot-token', { required: true });
         const channel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
-        const releaseBody = coreExports.getInput('release-body');
-        const releaseUrl = coreExports.getInput('release-url');
-        const releaseVersion = coreExports.getInput('release-version', { required: true });
         const customMessage = coreExports.getInput('custom-message');
-        const repositoryName = coreExports.getInput('repository-name') || githubExports.context.repo.repo;
+        // Get release information from GitHub context or inputs
+        const releaseVersion = coreExports.getInput('release-version') ||
+            githubExports.context.payload.release?.tag_name;
+        const releaseUrl = coreExports.getInput('release-url') || githubExports.context.payload.release?.html_url;
+        const releaseBody = coreExports.getInput('release-body') ||
+            githubExports.context.payload.release?.body ||
+            '';
+        const repositoryName = coreExports.getInput('repository-name') ||
+            `${githubExports.context.repo.owner}/${githubExports.context.repo.repo}`;
+        if (!releaseVersion) {
+            throw new Error('No release version found. This action should be triggered by a release event or provide release-version input.');
+        }
         coreExports.info(`🚀 Starting release notification for ${repositoryName}`);
         coreExports.info(`📦 Version: ${releaseVersion}`);
         coreExports.info(`📢 Slack channel: ${channel}`);
