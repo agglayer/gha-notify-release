@@ -33,7 +33,7 @@ describe('main.ts', () => {
       .spyOn(core, 'getInput')
       .mockImplementation((name: string) => {
         switch (name) {
-          case 'slack-token':
+          case 'slack-bot-token':
             return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
           case 'slack-channel':
             return 'releases'
@@ -101,7 +101,7 @@ describe('main.ts', () => {
   it('Uses default channel when not specified', async () => {
     getInputSpy.mockImplementation((name: string) => {
       switch (name) {
-        case 'slack-token':
+        case 'slack-bot-token':
           return 'xoxb-123456789012-1234567890123-abcdefghijklmnop'
         case 'slack-channel':
           return '' // No channel specified
@@ -126,7 +126,7 @@ describe('main.ts', () => {
 
   it('Sets a failed status when no bot token is available', async () => {
     getInputSpy.mockImplementation((name: string) => {
-      if (name === 'slack-token') {
+      if (name === 'slack-bot-token') {
         return '' // No token provided
       }
       return 'default-value'
@@ -138,7 +138,7 @@ describe('main.ts', () => {
 
     // Verify that the action was marked as failed
     expect(setFailedSpy).toHaveBeenCalledWith(
-      expect.stringContaining('slack-token is required')
+      expect.stringContaining('slack-bot-token is required')
     )
   })
 

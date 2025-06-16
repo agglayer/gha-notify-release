@@ -42,7 +42,7 @@ jobs:
       - name: Notify Slack
         uses: agglayer/gha-notify-release@v1
         with:
-          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
           slack-channel: 'releases'
 ```
 
@@ -52,7 +52,7 @@ jobs:
 
 | Input | Description | Example |
 |-------|-------------|---------|
-| `slack-token` | Slack bot token (xoxb-...) | `${{ secrets.SLACK_BOT_TOKEN }}` |
+| `slack-bot-token` | Slack bot token (xoxb-...) | `${{ secrets.SLACK_BOT_TOKEN }}` |
 
 ### Optional Inputs
 
@@ -195,7 +195,7 @@ Direct links to GitHub Actions workflows are detected and displayed with status.
 
 **No Notifications:**
 - Check that the action is triggered on `release: published` events
-- Verify the `slack-token` secret is correctly set
+- Verify the `slack-bot-token` secret is correctly set
 
 ### Debug Mode
 

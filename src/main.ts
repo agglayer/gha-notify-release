@@ -9,7 +9,7 @@ import { sendReleaseNotification } from './slack.js'
 export async function run(): Promise<void> {
   try {
     // Get inputs
-    const token = core.getInput('slack-token', { required: true })
+    const token = core.getInput('slack-bot-token', { required: true })
     const channel = core.getInput('slack-channel') || 'C090TACJ9KN'
     const releaseBody = core.getInput('release-body')
     const releaseUrl = core.getInput('release-url')

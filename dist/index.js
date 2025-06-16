@@ -57422,7 +57422,7 @@ async function sendReleaseNotification(token, channel, notification) {
 async function run() {
     try {
         // Get inputs
-        const token = coreExports.getInput('slack-token', { required: true });
+        const token = coreExports.getInput('slack-bot-token', { required: true });
         const channel = coreExports.getInput('slack-channel') || 'C090TACJ9KN';
         const releaseBody = coreExports.getInput('release-body');
         const releaseUrl = coreExports.getInput('release-url');
