@@ -1,24 +1,40 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
-
-# Add your action's branding here. This will appear on the GitHub Marketplace.
-branding:
-  icon: heart
-  color: red
+name: 'GitHub Release Slack Notifier'
+description: 'Send Slack notifications for GitHub releases with intelligent change detection'
+author: '@sebastiendan'
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  slack-bot-token:
+    description: 'Slack bot token (xoxb-...)'
     required: true
-    default: '1000'
+  slack-channel:
+    description: 'Slack channel ID or name'
+    required: false
+    default: 'C090TACJ9KN'
+  release-version:
+    description: 'Release version/tag'
+    required: false
+  release-url:
+    description: 'URL to the release page'
+    required: false
+  release-body:
+    description: 'Release notes/body content'
+    required: false
+  custom-message:
+    description: 'Custom message to include in the notification'
+    required: false
+  repository-name:
+    description: 'Repository name (owner/repo format)'
+    required: false
 
-# Define your outputs here.
 outputs:
-  time:
-    description: Your output description here
+  notification-sent:
+    description: 'Whether the notification was sent successfully'
 
 runs:
-  using: node20
-  main: dist/index.js
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'bell'
+  color: 'green'

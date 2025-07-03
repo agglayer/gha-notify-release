@@ -1,27 +1,60 @@
 import * as core from '@actions/core'
-import { wait } from './wait.js'
+import * as github from '@actions/github'
+import { sendReleaseNotification } from './slack.js'
 
 /**
  * The main function for the action.
- *
- * @returns Resolves when the action is complete.
+ * @returns {Promise<void>} Resolves when the action is complete.
  */
 export async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
+    // Get inputs
+    const token = core.getInput('slack-bot-token', { required: true })
+    const channel = core.getInput('slack-channel') || 'C090TACJ9KN'
+    const customMessage = core.getInput('custom-message')
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    // Get release information from GitHub context or inputs
+    const releaseVersion =
+      core.getInput('release-version') ||
+      github.context.payload.release?.tag_name
+    const releaseUrl =
+      core.getInput('release-url') || github.context.payload.release?.html_url
+    const releaseBody =
+      core.getInput('release-body') ||
+      github.context.payload.release?.body ||
+      ''
+    const repositoryName =
+      core.getInput('repository-name') ||
+      `${github.context.repo.owner}/${github.context.repo.repo}`
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    if (!releaseVersion) {
+      throw new Error(
+        'No release version found. This action should be triggered by a release event or provide release-version input.'
+      )
+    }
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
+    core.info(`🚀 Starting release notification for ${repositoryName}`)
+    core.info(`📦 Version: ${releaseVersion}`)
+    core.info(`📢 Slack channel: ${channel}`)
+
+    if (customMessage) {
+      core.info(`💬 Custom message: ${customMessage}`)
+    }
+
+    // Send Slack notification
+    await sendReleaseNotification(token, channel, {
+      version: releaseVersion,
+      releaseUrl: releaseUrl,
+      releaseNotes: releaseBody,
+      customMessage: customMessage,
+      repositoryName: repositoryName
+    })
+
+    core.info('✅ Release notification sent successfully!')
   } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    // Handle any errors
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    core.error(`❌ Action failed: ${errorMessage}`)
+    core.setFailed(errorMessage)
   }
 }
