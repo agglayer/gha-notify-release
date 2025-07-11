@@ -11,6 +11,28 @@ A GitHub Action to automatically send intelligent Slack notifications when new r
 - 📢 **Rich Slack Messages**: Color-coded messages with appropriate emoji and formatting
 - 🔧 **Customizable**: Add custom messages and configure for any repository
 
+## 🚀 Instant Setup (Recommended)
+
+**Want to try it immediately?** We've prepared a Slack bot token for instant testing!
+
+```yaml
+name: Release Notification
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        uses: agglayer/gha-notify-release@v1
+        with:
+          slack-bot-token: ${{ secrets.SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE }}
+```
+
+Just add `SLACK_APP_TOKEN_AGGLAYER_NOTIFY_RELEASE` as a repository secret with the prepared token value (available in the agglayer GitHub org), and you're ready to go! No Slack app setup required.
+
 ## Quick Start
 
 ### 1. Create a Slack App
@@ -43,9 +65,12 @@ jobs:
         uses: agglayer/gha-notify-release@v1
         with:
           slack-bot-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel: releases  # Optional: specify channel name or ID
+          custom-message: "🎉 New release available!"  # Optional: add custom message
+          # release-version, release-url, release-body are auto-detected from release event
 ```
 
-> **That's it!** The action will automatically detect the release information from the GitHub event and send an intelligent notification to your default channel.
+> **That's it!** The action will automatically detect the release information from the GitHub event and send an intelligent notification to your specified channel.
 
 ## Configuration
 
